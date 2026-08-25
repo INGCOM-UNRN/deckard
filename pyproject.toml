@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "deckard"
+version = "0.1.0"
+description = "Gestor de bancos de ejercicios prácticos, guías y graduación para cátedras de C."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Cátedra Programación 1 - UNRN"}]
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0,<3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+deckard = "deckard.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/deckard"]
