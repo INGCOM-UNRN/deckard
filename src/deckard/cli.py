@@ -169,3 +169,63 @@ def compose(
                            for e in seleccion.ejercicios],
         }, f, allow_unicode=True, sort_keys=False)
     console.print(f"[green]✓ Guía escrita[/green] en {salida}")
+
+
+def _ejecutar_herramienta(comando: str) -> int:
+    """Corre un comando externo heredando consola; avisa si no está instalado."""
+    import shutil as _shutil
+    binario = comando.split()[0]
+    if _shutil.which(binario) is None:
+        console.print(f"[red]'{binario}' no está instalado.[/red]")
+        return 127
+    return subprocess.call(comando, shell=True)
+
+
+@app.command("fuzz")
+def fuzz(
+    ejercicio_id: str = typer.Argument(..., help="Id del ejercicio en el banco."),
+    banco: Path = typer.Option(Path("banco"), "--banco"),
+    cantidad: int = typer.Option(8, "--cantidad", "-n"),
+    segundos: int = typer.Option(15, "--segundos"),
+) -> None:
+    """Endurece los tests del ejercicio usando `dredd fuzz-gen` (requiere dredd)."""
+    dir_ej = banco / ejercicio_id
+    if not dir_ej.is_dir():
+        console.print(f"[red]No existe el ejercicio '{ejercicio_id}'.[/red]")
+        raise typer.Exit(code=1)
+
+    modelo = dir_ej / "solucion.c"
+    if not modelo.is_file():
+        console.print("[red]El ejercicio no tiene solucion.c[/red]")
+        raise typer.Exit(code=1)
+
+    destino = dir_ej / "tests"
+    cmd = (f"dredd fuzz-gen {modelo} -o {destino} --cantidad {cantidad} "
+           f"--segundos {segundos}")
+    console.print(f"[dim]$ {cmd}[/dim]")
+    rc = _ejecutar_herramienta(cmd)
+    if rc == 0:
+        console.print("[green]✓ Testcases endurecidos. Recordá marcar 'verificado' "
+                      "tras re-correr deckard verify.[/green]")
+    raise typer.Exit(code=rc)
+
+
+@app.command("test-harness")
+def test_harness(
+    ejercicio_id: str = typer.Argument(..., help="Id del ejercicio en el banco."),
+    spec: Path = typer.Argument(..., exists=True, help="spec.yaml del arnés."),
+    ripley: Optional[str] = typer.Option(None, "--ripley"),
+) -> None:
+    """Corre el arnés de prueba con inyección de malloc vía `ripley harness`."""
+    dir_ej = banco / ejercicio_id
+    ruta = f"--ripley {ripley} " if ripley else ""
+    # ripley harness espera cwd del spec para resolver archivo_fuente relativo
+    import os
+    os.chdir(spec.parent.parent if len(spec.parent.parts) > 1 else Path("."))
+    cmd = f"ripley harness {spec.name} {ruta.strip()}"
+    console.print(f"[dim]$ {cmd}[/dim]")
+    rc = _ejecutar_herramienta(cmd)
+    raise typer.Exit(code=rc)
+
+
+import subprocess  # noqa: E402
