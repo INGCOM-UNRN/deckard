@@ -228,4 +228,64 @@ def test_harness(
     raise typer.Exit(code=rc)
 
 
+# ---------------------------------------------------------------------------
+# pack
+# ---------------------------------------------------------------------------
+
+
+@app.command("pack")
+def pack(
+    objetivo: str = typer.Argument(
+        ...,
+        help="Id del ejercicio en el banco, o ruta a guia.yaml / carpeta de ejercicio.",
+    ),
+    banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio del banco de ejercicios."),
+    salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Archivo .ripkg o directorio de salida."),
+    sign_key: Optional[str] = typer.Option(None, "--sign-key", help="Clave GPG para firmar el paquete."),
+    starter: bool = typer.Option(False, "--starter", help="Generar también estructura starter repo para GitHub Classroom."),
+) -> None:
+    """Empaqueta ejercicios o guías como .ripkg para Ripley y starter repos."""
+    from deckard.core.pack import PackError, empaquetar_ejercicio, empaquetar_guia
+
+    ruta_obj = Path(objetivo)
+    try:
+        # Caso 1: Archivo de especificación de guía YAML
+        if ruta_obj.is_file() and (ruta_obj.suffix in (".yaml", ".yml") or "guia" in ruta_obj.name):
+            resultados = empaquetar_guia(
+                guia_spec_file=ruta_obj,
+                banco=banco,
+                out_dir=salida,
+                sign_key=sign_key,
+                generar_starter=starter,
+            )
+            console.print(f"[green]✓ Guía empaquetada: {len(resultados)} paquetes generados.[/green]")
+            for r in resultados:
+                console.print(f"  • [bold]{r.output_path.name}[/bold] ({r.archivos_payload} archivos, {r.checks_habilitados} checks)")
+                if r.starter_path:
+                    console.print(f"    ↳ Starter repo: [dim]{r.starter_path}[/dim]")
+            return
+
+        # Caso 2: Directorio de ejercicio directo o ID dentro de banco/
+        dir_ej = ruta_obj if ruta_obj.is_dir() else (banco / objetivo)
+        if not dir_ej.is_dir():
+            console.print(f"[red]No se encontró el ejercicio o guía: '{objetivo}' (buscado en {dir_ej})[/red]")
+            raise typer.Exit(code=1)
+
+        res = empaquetar_ejercicio(
+            dir_ejercicio=dir_ej,
+            out_path=salida,
+            sign_key=sign_key,
+            generar_starter=starter,
+        )
+        console.print(f"[green]✓ Paquete creado:[/green] {res.output_path}")
+        console.print(f"  Checks habilitados: {res.checks_habilitados} · Archivos: {res.archivos_payload} · Firmado: {'sí' if res.firmado else 'no'}")
+        if res.starter_path:
+            console.print(f"  [green]✓ Starter repo:[/green] {res.starter_path}")
+
+    except PackError as e:
+        console.print(f"[red]Error de empaquetado: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
 import subprocess  # noqa: E402
+
