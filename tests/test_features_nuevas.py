@@ -227,18 +227,6 @@ def test_init_templates(tmp_path):
     assert (dest / "guia.md").is_file()
     assert (dest / "estilos.css").is_file()
 
-    # Probar alias directo 'export init-templates'
-    dest2 = tmp_path / "custom_templates_2"
-    res2 = runner.invoke(app, ["export", "init-templates", str(dest2)])
-    assert res2.exit_code == 0
-    assert (dest2 / "ejercicio.html").is_file()
-
-    # Probar alias corto 'export init'
-    dest3 = tmp_path / "custom_templates_3"
-    res3 = runner.invoke(app, ["export", "init", str(dest3)])
-    assert res3.exit_code == 0
-    assert (dest3 / "ejercicio.html").is_file()
-
     # Probar 'export templates list'
     res_ls = runner.invoke(app, ["export", "templates", "list"])
     assert res_ls.exit_code == 0

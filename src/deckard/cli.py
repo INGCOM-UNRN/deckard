@@ -631,8 +631,6 @@ export_app.add_typer(templates_sub_app, name="templates")
 
 
 @templates_sub_app.command("init")
-@export_app.command("init-templates")
-@export_app.command("init")
 def export_init_templates(
     destino: Path = typer.Argument(Path("templates"), help="Directorio destino para las plantillas."),
     global_config: bool = typer.Option(False, "--global", "-g", help="Instalar en la configuración global de usuario (~/.config/deckard/templates)."),
