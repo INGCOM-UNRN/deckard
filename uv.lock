@@ -228,14 +228,12 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
     { name = "typer" },
+    { name = "weasyprint" },
 ]
 
 [package.optional-dependencies]
 dev = [
     { name = "pytest" },
-]
-pdf = [
-    { name = "weasyprint" },
 ]
 
 [package.metadata]
@@ -247,9 +245,9 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.7.0" },
     { name = "typer", specifier = ">=0.12.0" },
-    { name = "weasyprint", marker = "extra == 'pdf'", specifier = ">=60.0" },
+    { name = "weasyprint", specifier = ">=60.0" },
 ]
-provides-extras = ["dev", "pdf"]
+provides-extras = ["dev"]
 
 [[package]]
 name = "fonttools"
