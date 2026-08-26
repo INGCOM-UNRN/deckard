@@ -9,6 +9,9 @@ import yaml
 
 from deckard.core.models import Ejercicio, GuiaSpec, NivelBloom, Seleccion
 
+import fnmatch
+from typing import List, Optional, Tuple
+
 ARCHIVO_EJERCICIO = "ejercicio.yaml"
 
 
@@ -26,7 +29,9 @@ def cargar_ejercicio(dir_ejercicio: Path) -> Ejercicio:
 
     solucion_archivo = dir_ejercicio / "solucion.c"
     if solucion_archivo.is_file():
-        datos.setdefault("solucion_c", solucion_archivo.read_text(encoding="utf-8"))
+        datos["solucion_c"] = solucion_archivo.read_text(encoding="utf-8")
+    else:
+        datos.setdefault("solucion_c", "")
     return Ejercicio(**datos)
 
 
@@ -44,15 +49,96 @@ def guardar_ejercicio(ejercicio: Ejercicio, dir_base: Path) -> Path:
     return destino
 
 
+def actualizar_verificacion(dir_ejercicio: Path, verificado: bool) -> None:
+    """Actualiza el campo 'verificado' en ejercicio.yaml."""
+    ej = cargar_ejercicio(dir_ejercicio)
+    ej.verificado = verificado
+    meta = dir_ejercicio / ARCHIVO_EJERCICIO
+    datos = ej.to_yaml_dict()
+    datos.pop("solucion_c", None)
+    with open(meta, "w", encoding="utf-8") as f:
+        yaml.safe_dump(datos, f, allow_unicode=True, sort_keys=False)
+
+
+def buscar_ejercicios(
+    banco: Path,
+    patron: Optional[str] = None,
+    tema: Optional[str] = None,
+    bloom: Optional[int] = None,
+    verificado: Optional[bool] = None,
+    tags: Optional[List[str]] = None,
+    recursivo: bool = True,
+) -> List[Tuple[Path, Ejercicio]]:
+    """Busca y filtra ejercicios en el banco según patrón comodín, tema, bloom y verificación.
+
+    Retorna una lista de tuplas (directorio_ejercicio, Ejercicio) ordenadas por id.
+    """
+    banco = Path(banco)
+    candidatos_dirs: set[Path] = set()
+
+    if not banco.exists():
+        return []
+
+    # Si el propio 'banco' es un ejercicio
+    if (banco / ARCHIVO_EJERCICIO).is_file():
+        candidatos_dirs.add(banco)
+    else:
+        if banco.is_dir():
+            for p in banco.iterdir():
+                if p.is_dir() and (p / ARCHIVO_EJERCICIO).is_file():
+                    candidatos_dirs.add(p)
+            if recursivo:
+                for yaml_path in banco.rglob(ARCHIVO_EJERCICIO):
+                    candidatos_dirs.add(yaml_path.parent)
+
+    resultados: List[Tuple[Path, Ejercicio]] = []
+    for dir_ej in sorted(candidatos_dirs, key=lambda p: str(p)):
+        try:
+            ej = cargar_ejercicio(dir_ej)
+        except Exception:
+            continue
+
+        # Filtro por patrón comodín
+        if patron and patron.strip():
+            pat = patron.strip()
+            try:
+                rel_path = dir_ej.relative_to(banco).as_posix()
+            except ValueError:
+                rel_path = dir_ej.name
+
+            id_match = fnmatch.fnmatch(ej.id, pat)
+            name_match = fnmatch.fnmatch(dir_ej.name, pat)
+            rel_match = fnmatch.fnmatch(rel_path, pat)
+            exact_match = (ej.id == pat) or (dir_ej.name == pat)
+
+            if not (id_match or name_match or rel_match or exact_match):
+                continue
+
+        # Filtro por tema
+        if tema and ej.tema.lower() != tema.lower():
+            continue
+
+        # Filtro por nivel de Bloom
+        if bloom is not None and int(ej.bloom) != bloom:
+            continue
+
+        # Filtro por verificación
+        if verificado is not None and ej.verificado != verificado:
+            continue
+
+        # Filtro por tags
+        if tags and not any(t.lower() in [x.lower() for x in ej.tags] for t in tags):
+            continue
+
+        resultados.append((dir_ej, ej))
+
+    resultados.sort(key=lambda t: t[1].id)
+    return resultados
+
+
 def listar_ejercicios(banco: Path) -> List[Ejercicio]:
     """Recorre banco/*/ejercicio.yaml y devuelve los ejercicios ordenados por id."""
-    ejercicios: List[Ejercicio] = []
-    for dir_ej in sorted(p for p in banco.iterdir() if p.is_dir()) if banco.is_dir() else []:
-        try:
-            ejercicios.append(cargar_ejercicio(dir_ej))
-        except FileNotFoundError:
-            continue
-    return ejercicios
+    return [ej for _, ej in buscar_ejercicios(banco, recursivo=True)]
 
 
 # ---------------------------------------------------------------------------

@@ -29,7 +29,7 @@ class Ejercicio(BaseModel):
     bloom: NivelBloom
     minutos_estimados: int = Field(..., ge=1, le=600)
     enunciado_md: str               # markdown del enunciado
-    solucion_c: str                 # solución modelo (verificada con ripley)
+    solucion_c: str = ""            # solución modelo (verificada con ripley)
     pistas: List[str] = Field(default_factory=list)  # progresivas, ordenadas
     tags: List[str] = Field(default_factory=list)
     verificado: bool = False        # lo setea `deckard verify`

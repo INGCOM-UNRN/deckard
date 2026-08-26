@@ -113,3 +113,100 @@ def test_compose_sin_candidatos_devuelve_seleccion_vacia(banco):
                     temas=["cuantica"], cantidad_maxima=5)
     sel = componer_guia(banco, spec)
     assert sel.ejercicios == [] and sel.minutos_totales == 0
+
+
+# ---------------------------------------------------------------------------
+# Búsqueda y operaciones masivas (repositorios grandes / comodines)
+# ---------------------------------------------------------------------------
+
+from deckard.core.bank import buscar_ejercicios, actualizar_verificacion
+from typer.testing import CliRunner
+from deckard.cli import app
+from unittest.mock import patch
+
+runner = CliRunner()
+
+
+def test_buscar_ejercicios_con_wildcard(banco):
+    # Buscar con comodín '*-tabla' o 'arbol-*'
+    res = buscar_ejercicios(banco, patron="*-tabla")
+    assert len(res) == 1
+    assert res[0][1].id == "hash-tabla"
+
+    # Buscar con comodín general '*'
+    todos = buscar_ejercicios(banco, patron="*")
+    assert len(todos) == 5
+
+    # Buscar por tema
+    estructuras = buscar_ejercicios(banco, tema="estructuras")
+    assert len(estructuras) == 2
+    assert {e.id for _, e in estructuras} == {"hash-tabla", "arbol-abb"}
+
+    # Buscar por nivel de Bloom
+    bloom1 = buscar_ejercicios(banco, bloom=1)
+    assert len(bloom1) == 1
+    assert bloom1[0][1].id == "suma-basica"
+
+
+def test_buscar_ejercicios_recursivo(tmp_path):
+    # Estructura anidada: banco/tp1/ej1 y banco/tp2/avanzado/ej2
+    banco = tmp_path / "banco_anidado"
+    dir_tp1 = banco / "tp1"
+    dir_tp2 = banco / "tp2" / "avanzado"
+    guardar_ejercicio(_ejercicio("ej-uno", "intro", 1, 10), dir_tp1)
+    guardar_ejercicio(_ejercicio("ej-dos", "punteros", 3, 20), dir_tp2)
+
+    encontrados = buscar_ejercicios(banco, recursivo=True)
+    assert len(encontrados) == 2
+    ids = {e.id for _, e in encontrados}
+    assert ids == {"ej-uno", "ej-dos"}
+
+
+def test_actualizar_verificacion(banco):
+    dir_ej = banco / "suma-basica"
+    actualizar_verificacion(dir_ej, True)
+    ej = buscar_ejercicios(banco, patron="suma-basica")[0][1]
+    assert ej.verificado is True
+
+
+def test_cli_bank_list_con_filtros(banco):
+    res = runner.invoke(app, ["bank", "list", "*-tabla", "--banco", str(banco)])
+    assert res.exit_code == 0
+    assert "hash-tabla" in res.stdout
+    assert "suma-basica" not in res.stdout
+
+    res_tema = runner.invoke(app, ["bank", "list", "--tema", "punteros", "--banco", str(banco)])
+    assert res_tema.exit_code == 0
+    assert "lista-enlazada" in res_tema.stdout
+
+
+def test_cli_fuzz_dry_run_con_wildcard(banco):
+    res = runner.invoke(app, ["fuzz", "*", "--banco", str(banco), "--dry-run"])
+    assert res.exit_code == 0
+    assert "Ejercicios seleccionados para fuzz" in res.stdout
+    assert "suma-basica" in res.stdout
+    assert "hash-tabla" in res.stdout
+
+
+def test_cli_fuzz_all_ejecuta_batch(banco):
+    with patch("shutil.which", return_value="/usr/bin/dredd"), \
+         patch("subprocess.run") as mock_subproc:
+        mock_subproc.return_value.returncode = 0
+        mock_subproc.return_value.stdout = ""
+        mock_subproc.return_value.stderr = ""
+
+        res = runner.invoke(app, ["fuzz", "--all", "--banco", str(banco), "-n", "4"])
+        assert res.exit_code == 0
+        assert "Ejecutando fuzz-gen sobre 5 ejercicios" in res.stdout
+        assert "5 completados" in res.stdout
+
+
+def test_cli_verify_all_batch(banco):
+    with patch("deckard.cli.verificar_ejercicio") as mock_verify:
+        from deckard.core.verify import ResultadoVerify
+        mock_verify.return_value = ResultadoVerify("ej", True, "Todo en orden")
+
+        res = runner.invoke(app, ["verify", "--all", "--banco", str(banco)])
+        assert res.exit_code == 0
+        assert "Verificando 5 ejercicios" in res.stdout
+        assert "5/5 exitosos" in res.stdout
