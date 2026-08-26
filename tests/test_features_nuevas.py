@@ -171,9 +171,9 @@ def test_export_markdown_ejercicio(banco_con_tests, tmp_path):
     res = runner.invoke(app, [
         "export", "invertir-vector",
         "--banco", str(banco_con_tests),
-        "-f", "md",
+        "--type", "md",
         "-o", str(out_md),
-        "-s", "-p", "-t"
+        "-s", "-p", "--tests"
     ])
     assert res.exit_code == 0
     assert out_md.is_file()
@@ -189,7 +189,7 @@ def test_export_markdown_guia(guias_dir, banco_con_tests, tmp_path):
     res = runner.invoke(app, [
         "export", str(guias_dir / "guia_compuesta.yaml"),
         "--banco", str(banco_con_tests),
-        "-f", "markdown",
+        "--type", "markdown",
         "-o", str(out_md),
         "-s"
     ])
@@ -208,12 +208,44 @@ def test_export_pdf_via_pipeline_markdown(banco_con_tests, tmp_path):
         res = runner.invoke(app, [
             "export", "invertir-vector",
             "--banco", str(banco_con_tests),
-            "-f", "pdf",
+            "--type", "pdf",
             "--pipeline-md",
             "-o", str(out_pdf)
         ])
         assert res.exit_code == 0
         assert "exportado a PDF" in res.stdout
+        mock_pdf.assert_called_once()
+
+
+def test_export_multi_type_ejercicio(banco_con_tests, tmp_path):
+    out_dir = tmp_path / "multi_out"
+    with patch("deckard.cli.compilar_pdf") as mock_pdf:
+        mock_pdf.return_value = out_dir / "invertir-vector.pdf"
+        res = runner.invoke(app, [
+            "export", "invertir-vector",
+            "--banco", str(banco_con_tests),
+            "--type", "pdf,md,html",
+            "-o", str(out_dir)
+        ])
+        assert res.exit_code == 0
+        assert (out_dir / "invertir-vector.md").is_file()
+        assert (out_dir / "invertir-vector.html").is_file()
+        mock_pdf.assert_called_once()
+
+
+def test_export_multi_type_guia(guias_dir, banco_con_tests, tmp_path):
+    out_dir = tmp_path / "multi_guia"
+    with patch("deckard.cli.compilar_pdf") as mock_pdf:
+        mock_pdf.return_value = out_dir / "guia_compuesta.pdf"
+        res = runner.invoke(app, [
+            "export", str(guias_dir / "guia_compuesta.yaml"),
+            "--banco", str(banco_con_tests),
+            "--type=md,html,pdf",
+            "-o", str(out_dir)
+        ])
+        assert res.exit_code == 0
+        assert (out_dir / "guia_compuesta.md").is_file()
+        assert (out_dir / "guia_compuesta.html").is_file()
         mock_pdf.assert_called_once()
 
 
@@ -250,7 +282,7 @@ def test_export_con_imagen_en_plantilla(banco_con_tests, tmp_path):
         "export", "invertir-vector",
         "--banco", str(banco_con_tests),
         "-T", str(custom_html),
-        "-f", "html",
+        "--type", "html",
         "-o", str(out_html)
     ])
     assert res.exit_code == 0

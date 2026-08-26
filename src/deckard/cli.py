@@ -674,22 +674,34 @@ def export_templates_list() -> None:
     console.print(tabla)
 
 
+def _parse_output_types(tipo_str: str) -> List[str]:
+    raw_list = [t.strip().lower() for t in tipo_str.split(",") if t.strip()]
+    res = []
+    for r in raw_list:
+        val = "md" if r == "markdown" else r
+        if val not in ("pdf", "md", "html"):
+            console.print(f"[red]Formato de salida no válido: '{r}'. Opciones permitidas: pdf, md, html.[/red]")
+            raise typer.Exit(code=1)
+        if val not in res:
+            res.append(val)
+    return res or ["pdf"]
+
+
 @export_app.command("run", hidden=True)
 def exportar_contenido(
     objetivo: str = typer.Argument(..., help="Id de ejercicio, comodín ('*'), o ruta a guía (.yaml)."),
-    formato: str = typer.Option("pdf", "--formato", "-f", help="Formato de salida: pdf, md (markdown), html."),
+    type: str = typer.Option("pdf", "--type", "-t", help="Formatos de salida (ej: --type=pdf,md o --type=html). Separar por comas."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
     salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Archivo de salida o directorio destino."),
     template: Optional[str] = typer.Option(None, "--template", "-T", help="Nombre o ruta de plantilla personalizada."),
     pipeline_md: bool = typer.Option(False, "--pipeline-md", help="Generar Markdown intermedio antes de compilar PDF."),
     solucion: bool = typer.Option(False, "--solucion", "-s", help="Incluir solución modelo."),
     pistas: bool = typer.Option(False, "--pistas", "-p", help="Incluir pistas progresivas."),
-    tests: bool = typer.Option(False, "--tests", "-t", help="Incluir casos de prueba."),
+    tests: bool = typer.Option(False, "--tests", help="Incluir casos de prueba."),
     css: Optional[Path] = typer.Option(None, "--css", exists=True, help="Archivo CSS adicional para PDF/HTML."),
-    html_only: bool = typer.Option(False, "--html", help="Atajo para --formato html."),
 ) -> None:
     """Exporta ejercicios o guías a Markdown, HTML o PDF con plantillas personalizables."""
-    fmt = "html" if html_only else formato.lower()
+    tipos = _parse_output_types(type)
     extra_css_str = css.read_text(encoding="utf-8") if css else None
     ruta_obj = Path(objetivo)
 
@@ -701,43 +713,60 @@ def exportar_contenido(
             console.print(f"[red]La guía '{objetivo}' no tiene ejercicios válidos en el banco.[/red]")
             raise typer.Exit(code=1)
 
-        if fmt in ("md", "markdown"):
-            md_salida, _ = renderizar_guia_md(
-                guia_meta=guia_meta,
-                ejercicios_con_dir=validos,
-                template_nombre_o_ruta=template,
-                incluir_soluciones=solucion,
-                incluir_pistas=pistas,
-                dir_banco=banco,
-            )
-            dest = salida or Path(f"{ruta_obj.stem}.md")
-            dest.write_text(md_salida, encoding="utf-8")
-            console.print(f"[green]✓ Guía exportada a Markdown:[/green] {dest}")
-            return
+        for fmt in tipos:
+            if salida is not None:
+                if len(tipos) == 1 and not salida.is_dir() and salida.suffix:
+                    dest = salida
+                elif salida.is_dir() or not salida.suffix or str(salida).endswith(("/", "\\")):
+                    dest = salida / f"{ruta_obj.stem}.{fmt}"
+                else:
+                    dest = salida.with_suffix(f".{fmt}")
+            else:
+                dest = Path(f"{ruta_obj.stem}.{fmt}")
 
-        html_salida, base_p = renderizar_guia_html(
-            guia_meta=guia_meta,
-            ejercicios_con_dir=validos,
-            template_nombre_o_ruta=template,
-            incluir_soluciones=solucion,
-            incluir_pistas=pistas,
-            extra_css=extra_css_str,
-            dir_banco=banco,
-            via_markdown_pipeline=pipeline_md,
-        )
+            dest.parent.mkdir(parents=True, exist_ok=True)
 
-        dest = salida or Path(f"{ruta_obj.stem}.{'html' if fmt == 'html' else 'pdf'}")
-        if fmt == "html":
-            dest.write_text(html_salida, encoding="utf-8")
-            console.print(f"[green]✓ Guía exportada a HTML:[/green] {dest}")
-            return
-
-        try:
-            pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
-            console.print(f"[green]✓ Guía exportada a PDF:[/green] {pdf_path}")
-        except Exception as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(code=1)
+            if fmt == "md":
+                md_salida, _ = renderizar_guia_md(
+                    guia_meta=guia_meta,
+                    ejercicios_con_dir=validos,
+                    template_nombre_o_ruta=template,
+                    incluir_soluciones=solucion,
+                    incluir_pistas=pistas,
+                    dir_banco=banco,
+                )
+                dest.write_text(md_salida, encoding="utf-8")
+                console.print(f"[green]✓ Guía exportada a Markdown:[/green] {dest}")
+            elif fmt == "html":
+                html_salida, _ = renderizar_guia_html(
+                    guia_meta=guia_meta,
+                    ejercicios_con_dir=validos,
+                    template_nombre_o_ruta=template,
+                    incluir_soluciones=solucion,
+                    incluir_pistas=pistas,
+                    extra_css=extra_css_str,
+                    dir_banco=banco,
+                    via_markdown_pipeline=pipeline_md,
+                )
+                dest.write_text(html_salida, encoding="utf-8")
+                console.print(f"[green]✓ Guía exportada a HTML:[/green] {dest}")
+            elif fmt == "pdf":
+                html_salida, base_p = renderizar_guia_html(
+                    guia_meta=guia_meta,
+                    ejercicios_con_dir=validos,
+                    template_nombre_o_ruta=template,
+                    incluir_soluciones=solucion,
+                    incluir_pistas=pistas,
+                    extra_css=extra_css_str,
+                    dir_banco=banco,
+                    via_markdown_pipeline=pipeline_md,
+                )
+                try:
+                    pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
+                    console.print(f"[green]✓ Guía exportada a PDF:[/green] {pdf_path}")
+                except Exception as e:
+                    console.print(f"[red]{e}[/red]")
+                    raise typer.Exit(code=1)
         return
 
     # Caso 2: Ejercicio o comodín de ejercicios
@@ -752,57 +781,20 @@ def exportar_contenido(
     if len(candidatos) == 1:
         dir_ej, ej = candidatos[0]
 
-        if fmt in ("md", "markdown"):
-            md_salida, _ = renderizar_ejercicio_md(
-                ejercicio=ej,
-                dir_ejercicio=dir_ej,
-                template_nombre_o_ruta=template,
-                incluir_meta=True,
-                incluir_solucion=solucion,
-                incluir_pistas=pistas,
-                incluir_tests=tests,
-                dir_banco=banco,
-            )
-            dest = salida or Path(f"{ej.id}.md")
-            dest.write_text(md_salida, encoding="utf-8")
-            console.print(f"[green]✓ Ejercicio exportado a Markdown:[/green] {dest}")
-            return
+        for fmt in tipos:
+            if salida is not None:
+                if len(tipos) == 1 and not salida.is_dir() and salida.suffix:
+                    dest = salida
+                elif salida.is_dir() or not salida.suffix or str(salida).endswith(("/", "\\")):
+                    dest = salida / f"{ej.id}.{fmt}"
+                else:
+                    dest = salida.with_suffix(f".{fmt}")
+            else:
+                dest = Path(f"{ej.id}.{fmt}")
 
-        html_salida, base_p = renderizar_ejercicio_html(
-            ejercicio=ej,
-            dir_ejercicio=dir_ej,
-            template_nombre_o_ruta=template,
-            incluir_solucion=solucion,
-            incluir_pistas=pistas,
-            incluir_tests=tests,
-            extra_css=extra_css_str,
-            dir_banco=banco,
-            via_markdown_pipeline=pipeline_md,
-        )
+            dest.parent.mkdir(parents=True, exist_ok=True)
 
-        dest = salida or Path(f"{ej.id}.{'html' if fmt == 'html' else 'pdf'}")
-        if fmt == "html":
-            dest.write_text(html_salida, encoding="utf-8")
-            console.print(f"[green]✓ Ejercicio exportado a HTML:[/green] {dest}")
-            return
-
-        try:
-            pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
-            console.print(f"[green]✓ Ejercicio exportado a PDF:[/green] {pdf_path}")
-        except Exception as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(code=1)
-    else:
-        out_dir = salida or Path(f"dist/{fmt}")
-        out_dir.mkdir(parents=True, exist_ok=True)
-        console.print(f"[bold]Exportando {len(candidatos)} ejercicios a {fmt.upper()} en {out_dir}...[/bold]")
-
-        tabla = Table(title=f"Exportación ({fmt.upper()})")
-        tabla.add_column("Ejercicio", style="cyan")
-        tabla.add_column("Archivo generado", style="green")
-
-        for dir_ej, ej in candidatos:
-            if fmt in ("md", "markdown"):
+            if fmt == "md":
                 md_salida, _ = renderizar_ejercicio_md(
                     ejercicio=ej,
                     dir_ejercicio=dir_ej,
@@ -813,9 +805,23 @@ def exportar_contenido(
                     incluir_tests=tests,
                     dir_banco=banco,
                 )
-                file_dest = out_dir / f"{ej.id}.md"
-                file_dest.write_text(md_salida, encoding="utf-8")
-            else:
+                dest.write_text(md_salida, encoding="utf-8")
+                console.print(f"[green]✓ Ejercicio exportado a Markdown:[/green] {dest}")
+            elif fmt == "html":
+                html_salida, _ = renderizar_ejercicio_html(
+                    ejercicio=ej,
+                    dir_ejercicio=dir_ej,
+                    template_nombre_o_ruta=template,
+                    incluir_solucion=solucion,
+                    incluir_pistas=pistas,
+                    incluir_tests=tests,
+                    extra_css=extra_css_str,
+                    dir_banco=banco,
+                    via_markdown_pipeline=pipeline_md,
+                )
+                dest.write_text(html_salida, encoding="utf-8")
+                console.print(f"[green]✓ Ejercicio exportado a HTML:[/green] {dest}")
+            elif fmt == "pdf":
                 html_salida, base_p = renderizar_ejercicio_html(
                     ejercicio=ej,
                     dir_ejercicio=dir_ej,
@@ -827,17 +833,70 @@ def exportar_contenido(
                     dir_banco=banco,
                     via_markdown_pipeline=pipeline_md,
                 )
-                if fmt == "html":
-                    file_dest = out_dir / f"{ej.id}.html"
+                try:
+                    pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
+                    console.print(f"[green]✓ Ejercicio exportado a PDF:[/green] {pdf_path}")
+                except Exception as e:
+                    console.print(f"[red]{e}[/red]")
+                    raise typer.Exit(code=1)
+        return
+    else:
+        out_dir = salida or Path("dist")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        tipos_str = ", ".join(t.upper() for t in tipos)
+        console.print(f"[bold]Exportando {len(candidatos)} ejercicios a [{tipos_str}] en {out_dir}...[/bold]")
+
+        tabla = Table(title=f"Exportación ({tipos_str})")
+        tabla.add_column("Ejercicio", style="cyan")
+        tabla.add_column("Formato", justify="center")
+        tabla.add_column("Archivo generado", style="green")
+
+        for dir_ej, ej in candidatos:
+            for fmt in tipos:
+                file_dest = out_dir / f"{ej.id}.{fmt}"
+                if fmt == "md":
+                    md_salida, _ = renderizar_ejercicio_md(
+                        ejercicio=ej,
+                        dir_ejercicio=dir_ej,
+                        template_nombre_o_ruta=template,
+                        incluir_meta=True,
+                        incluir_solucion=solucion,
+                        incluir_pistas=pistas,
+                        incluir_tests=tests,
+                        dir_banco=banco,
+                    )
+                    file_dest.write_text(md_salida, encoding="utf-8")
+                elif fmt == "html":
+                    html_salida, _ = renderizar_ejercicio_html(
+                        ejercicio=ej,
+                        dir_ejercicio=dir_ej,
+                        template_nombre_o_ruta=template,
+                        incluir_solucion=solucion,
+                        incluir_pistas=pistas,
+                        incluir_tests=tests,
+                        extra_css=extra_css_str,
+                        dir_banco=banco,
+                        via_markdown_pipeline=pipeline_md,
+                    )
                     file_dest.write_text(html_salida, encoding="utf-8")
-                else:
-                    file_dest = out_dir / f"{ej.id}.pdf"
+                elif fmt == "pdf":
+                    html_salida, base_p = renderizar_ejercicio_html(
+                        ejercicio=ej,
+                        dir_ejercicio=dir_ej,
+                        template_nombre_o_ruta=template,
+                        incluir_solucion=solucion,
+                        incluir_pistas=pistas,
+                        incluir_tests=tests,
+                        extra_css=extra_css_str,
+                        dir_banco=banco,
+                        via_markdown_pipeline=pipeline_md,
+                    )
                     compilar_pdf(html_salida, file_dest, base_url=str(base_p) if base_p else ".")
 
-            tabla.add_row(ej.id, str(file_dest))
+                tabla.add_row(ej.id, fmt.upper(), str(file_dest))
 
         console.print(tabla)
-        console.print(f"[green]✓ {len(candidatos)} archivos generados en {out_dir}[/green]")
+        console.print(f"[green]✓ Archivos generados en {out_dir}[/green]")
 
 
 # ---------------------------------------------------------------------------
@@ -1097,9 +1156,9 @@ def guide_verify(
 @guide_app.command("pdf")
 def guide_export_cmd(
     guia_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo de la guía."),
-    formato: str = typer.Option("pdf", "--formato", "-f", help="Formato: pdf, md (markdown), html."),
+    type: str = typer.Option("pdf", "--type", "-t", help="Formatos de salida separados por comas: pdf, md, html (ej: --type=pdf,md)."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio del banco."),
-    salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Archivo de salida."),
+    salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Archivo de salida o directorio destino."),
     template: Optional[str] = typer.Option(None, "--template", "-T", help="Plantilla personalizada."),
     pipeline_md: bool = typer.Option(False, "--pipeline-md", help="Generar Markdown intermedio antes de compilar PDF."),
     soluciones: bool = typer.Option(False, "--soluciones", "-s", help="Incluir apéndice de soluciones."),
@@ -1119,7 +1178,7 @@ def guide_export_cmd(
 
     exportar_contenido(
         objetivo=str(ruta),
-        formato=formato,
+        type=type,
         banco=banco,
         salida=salida,
         template=template,
@@ -1128,7 +1187,6 @@ def guide_export_cmd(
         pistas=pistas,
         tests=False,
         css=css,
-        html_only=False,
     )
 
 
