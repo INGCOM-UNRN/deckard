@@ -583,7 +583,52 @@ def fuzz(
 # ---------------------------------------------------------------------------
 
 
-@app.command("export")
+# ---------------------------------------------------------------------------
+# export (Exportación multiformato: PDF, MD, HTML) + init-templates
+# ---------------------------------------------------------------------------
+
+
+class ExportGroup(typer.core.TyperGroup):
+    """Permite ejecutar 'deckard export <objetivo>' directamente o subcomandos como 'deckard export init-templates'."""
+
+    def resolve_command(self, ctx, args):
+        cmd_name = args[0] if args else None
+        if cmd_name:
+            cmd = self.get_command(ctx, cmd_name)
+            if cmd is not None:
+                return super().resolve_command(ctx, args)
+        return super().resolve_command(ctx, ["run"] + args)
+
+
+export_app = typer.Typer(
+    cls=ExportGroup,
+    name="export",
+    help="Exportación multiformato (PDF, Markdown, HTML) y gestión de plantillas.",
+    no_args_is_help=True,
+)
+app.add_typer(export_app, name="export")
+
+
+@export_app.command("init-templates")
+@export_app.command("init")
+def export_init_templates(
+    destino: Path = typer.Argument(Path("templates"), help="Directorio destino para las plantillas."),
+    global_config: bool = typer.Option(False, "--global", "-g", help="Instalar en la configuración global de usuario (~/.config/deckard/templates)."),
+    sobrescribir: bool = typer.Option(False, "--force", "-f", help="Sobrescribir plantillas existentes."),
+) -> None:
+    """Inicializa y copia las plantillas (HTML, Markdown y CSS) para personalizarlas."""
+    target_dir = Path.home() / ".config" / "deckard" / "templates" if global_config else destino
+    creados = inicializar_plantillas(target_dir, sobrescribir=sobrescribir)
+
+    console.print(f"[bold green]✓ Plantillas inicializadas en:[/bold green] {target_dir.resolve()}")
+    for p in creados:
+        console.print(f"  • [cyan]{p.name}[/cyan] ({p.suffix.upper()})")
+    if not creados:
+        console.print("  [yellow]Las plantillas ya existían. Usá --force para sobrescribir.[/yellow]")
+    console.print("\nPodés editar [bold]estilos.css[/bold], [bold]ejercicio.html[/bold], [bold]ejercicio.md[/bold] o agregar imágenes en este directorio.")
+
+
+@export_app.command("run", hidden=True)
 def exportar_contenido(
     objetivo: str = typer.Argument(..., help="Id de ejercicio, comodín ('*'), o ruta a guía (.yaml)."),
     formato: str = typer.Option("pdf", "--formato", "-f", help="Formato de salida: pdf, md (markdown), html."),
@@ -747,33 +792,6 @@ def exportar_contenido(
 
         console.print(tabla)
         console.print(f"[green]✓ {len(candidatos)} archivos generados en {out_dir}[/green]")
-
-
-# ---------------------------------------------------------------------------
-# templates app (init / list)
-# ---------------------------------------------------------------------------
-
-templates_app = typer.Typer(name="templates", help="Gestión y personalización de plantillas y CSS.", no_args_is_help=True)
-app.add_typer(templates_app, name="templates")
-
-
-@templates_app.command("init")
-@app.command("init-templates")
-def templates_init(
-    destino: Path = typer.Argument(Path("templates"), help="Directorio destino para las plantillas."),
-    global_config: bool = typer.Option(False, "--global", "-g", help="Instalar en la configuración global de usuario (~/.config/deckard/templates)."),
-    sobrescribir: bool = typer.Option(False, "--force", "-f", help="Sobrescribir plantillas existentes."),
-) -> None:
-    """Inicializa y copia las plantillas (HTML, Markdown y CSS) para personalizarlas."""
-    target_dir = Path.home() / ".config" / "deckard" / "templates" if global_config else destino
-    creados = inicializar_plantillas(target_dir, sobrescribir=sobrescribir)
-
-    console.print(f"[bold green]✓ Plantillas inicializadas en:[/bold green] {target_dir.resolve()}")
-    for p in creados:
-        console.print(f"  • [cyan]{p.name}[/cyan] ({p.suffix.upper()})")
-    if not creados:
-        console.print("  [yellow]Las plantillas ya existían. Usá --force para sobrescribir.[/yellow]")
-    console.print("\nPodés editar [bold]estilos.css[/bold], [bold]ejercicio.html[/bold], [bold]ejercicio.md[/bold] o agregar imágenes en este directorio.")
 
 
 # ---------------------------------------------------------------------------

@@ -219,13 +219,19 @@ def test_export_pdf_via_pipeline_markdown(banco_con_tests, tmp_path):
 
 def test_init_templates(tmp_path):
     dest = tmp_path / "custom_templates"
-    res = runner.invoke(app, ["templates", "init", str(dest)])
+    res = runner.invoke(app, ["export", "init-templates", str(dest)])
     assert res.exit_code == 0
     assert (dest / "ejercicio.html").is_file()
     assert (dest / "guia.html").is_file()
     assert (dest / "ejercicio.md").is_file()
     assert (dest / "guia.md").is_file()
     assert (dest / "estilos.css").is_file()
+
+    # Probar alias corto 'export init'
+    dest2 = tmp_path / "custom_templates_2"
+    res2 = runner.invoke(app, ["export", "init", str(dest2)])
+    assert res2.exit_code == 0
+    assert (dest2 / "ejercicio.html").is_file()
 
 
 def test_export_con_imagen_en_plantilla(banco_con_tests, tmp_path):
