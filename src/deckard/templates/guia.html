@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{{ guia.nombre }}</title>
+<style>
+@page {
+    size: A4 portrait;
+    margin: 1.8cm 1.5cm 1.8cm 1.5cm;
+    @top-left {
+        content: "Programación 1 — UNRN";
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #666;
+    }
+    @top-right {
+        content: "{{ guia.nombre }}";
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #666;
+    }
+    @bottom-center {
+        content: "Página " counter(page) " de " counter(pages);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #666;
+    }
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.5;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 0;
+}
+
+.guia-header {
+    border-bottom: 3px solid #1e40af;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+}
+
+.guia-institution {
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #1e40af;
+    font-weight: 700;
+}
+
+h1.guia-title {
+    font-size: 20pt;
+    margin: 6px 0 10px 0;
+    color: #0f172a;
+}
+
+.guia-summary-box {
+    display: table;
+    width: 100%;
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 24px;
+    font-size: 9pt;
+}
+
+.summary-row {
+    display: table-row;
+}
+
+.summary-cell {
+    display: table-cell;
+    padding: 2px 14px 2px 0;
+}
+
+.summary-label {
+    font-weight: 700;
+    color: #475569;
+}
+
+.ejercicio-container {
+    margin-bottom: 28px;
+    page-break-inside: avoid;
+}
+
+.ejercicio-header {
+    border-bottom: 1.5px solid #94a3b8;
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.ejercicio-title {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+.ejercicio-meta-line {
+    font-size: 8.5pt;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 8pt;
+    text-transform: uppercase;
+}
+
+.badge-bloom-1 { background-color: #e0f2fe; color: #0369a1; }
+.badge-bloom-2 { background-color: #ecfdf5; color: #047857; }
+.badge-bloom-3 { background-color: #fef3c7; color: #b45309; }
+.badge-bloom-4 { background-color: #ffedd5; color: #c2410c; }
+.badge-bloom-5 { background-color: #fce7f3; color: #be185d; }
+
+.enunciado-body {
+    text-align: justify;
+}
+
+.enunciado-body p {
+    margin: 0 0 8px 0;
+}
+
+pre, code {
+    font-family: "JetBrains Mono", "Fira Code", "Courier New", Courier, monospace;
+}
+
+code {
+    background-color: #f1f5f9;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 9pt;
+}
+
+pre {
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 8.5pt;
+    line-height: 1.4;
+    page-break-inside: avoid;
+}
+
+.pistas-box {
+    background-color: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    padding: 6px 10px;
+    margin-top: 10px;
+    font-size: 8.5pt;
+    page-break-inside: avoid;
+}
+
+.pistas-title {
+    font-weight: 700;
+    color: #92400e;
+    margin-bottom: 4px;
+}
+
+.pistas-box ol {
+    margin: 0;
+    padding-left: 16px;
+}
+
+.apendice-soluciones {
+    page-break-before: always;
+    margin-top: 30px;
+}
+
+.solucion-item {
+    margin-bottom: 20px;
+    page-break-inside: avoid;
+}
+
+{{ extra_css or '' }}
+</style>
+</head>
+<body>
+
+<div class="guia-header">
+    <div class="guia-institution">Universidad Nacional de Río Negro · Cátedra de Programación 1</div>
+    <h1 class="guia-title">{{ guia.nombre }}</h1>
+</div>
+
+<div class="guia-summary-box">
+    <div class="summary-row">
+        <div class="summary-cell"><span class="summary-label">Ejercicios:</span> {{ ejercicios | length }}</div>
+        <div class="summary-cell"><span class="summary-label">Carga total:</span> ~{{ guia.minutos_totales or total_minutos }} min</div>
+        {% if guia.distribucion_bloom %}
+        <div class="summary-cell"><span class="summary-label">Bloom:</span> 
+            {% for bloom_name, count in guia.distribucion_bloom.items() %}
+            {{ bloom_name }}: {{ count }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% for ej_data in items %}
+<div class="ejercicio-container">
+    <div class="ejercicio-header">
+        <h2 class="ejercicio-title">{{ loop.index }}. {{ ej_data.ejercicio.titulo }}</h2>
+    </div>
+    <div class="ejercicio-meta-line">
+        <strong>Tema:</strong> {{ ej_data.ejercicio.tema }} &nbsp;·&nbsp;
+        <strong>Bloom:</strong> <span class="badge badge-bloom-{{ ej_data.ejercicio.bloom.value }}">B{{ ej_data.ejercicio.bloom.value }} {{ ej_data.ejercicio.bloom.name.lower() }}</span> &nbsp;·&nbsp;
+        <strong>Estimado:</strong> {{ ej_data.ejercicio.minutos_estimados }} min &nbsp;·&nbsp;
+        <code>{{ ej_data.ejercicio.id }}</code>
+    </div>
+
+    <div class="enunciado-body">
+        {{ ej_data.enunciado_html | safe }}
+    </div>
+
+    {% if incluir_pistas and ej_data.ejercicio.pistas %}
+    <div class="pistas-box">
+        <div class="pistas-title">💡 Pistas:</div>
+        <ol>
+            {% for pista in ej_data.ejercicio.pistas %}
+            <li>{{ pista }}</li>
+            {% endfor %}
+        </ol>
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+
+{% if incluir_soluciones %}
+<div class="apendice-soluciones">
+    <div class="guia-header">
+        <h1 class="guia-title">Apéndice: Soluciones Modelo</h1>
+    </div>
+    {% for ej_data in items %}
+    {% if ej_data.ejercicio.solucion_c %}
+    <div class="solucion-item">
+        <h3>{{ loop.index }}. {{ ej_data.ejercicio.titulo }} (<code>{{ ej_data.ejercicio.id }}</code>)</h3>
+        <pre><code class="language-c">{{ ej_data.ejercicio.solucion_c }}</code></pre>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+
+</body>
+</html>
