@@ -265,11 +265,36 @@ def show_ejercicio(
 
 
 # ---------------------------------------------------------------------------
-# verify
+# DefaultCommandGroup helper
 # ---------------------------------------------------------------------------
 
 
-@app.command()
+class DefaultCommandGroup(typer.core.TyperGroup):
+    """Permite ejecutar subcomandos o delegar al comando por defecto 'run'."""
+
+    def parse_args(self, ctx, args):
+        if not args:
+            return super().parse_args(ctx, args)
+        cmd_name = args[0]
+        if cmd_name not in ["--help", "-h"] and self.get_command(ctx, cmd_name) is None:
+            args = ["run"] + list(args)
+        return super().parse_args(ctx, args)
+
+
+# ---------------------------------------------------------------------------
+# verify app (verify, fuzz, test-harness)
+# ---------------------------------------------------------------------------
+
+verify_app = typer.Typer(
+    cls=DefaultCommandGroup,
+    name="verify",
+    help="Verificación pedagógica (ripley check), fuzzing (dredd) y arnés de pruebas (ripley harness).",
+    no_args_is_help=False,
+)
+app.add_typer(verify_app, name="verify")
+
+
+@verify_app.command("run", hidden=True)
 def verify(
     ejercicio_id: Optional[str] = typer.Argument(None, help="Id del ejercicio o patrón comodín (ej: '*', 'invertir-*')."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
@@ -414,7 +439,8 @@ def _escribir_log_fallos(
     ruta_log.write_text("\n".join(lineas), encoding="utf-8")
 
 
-@app.command("fuzz")
+@verify_app.command("fuzz")
+@app.command("fuzz", hidden=True)
 def fuzz(
     ejercicio_id: Optional[str] = typer.Argument(None, help="Id del ejercicio o patrón comodín (ej: '*', 'invertir-*', 'punteros/*')."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
@@ -584,31 +610,27 @@ def fuzz(
 
 
 # ---------------------------------------------------------------------------
-# export (Exportación multiformato: PDF, MD, HTML) + init-templates
+# export (Exportación multiformato: PDF, MD, HTML) + templates
 # ---------------------------------------------------------------------------
 
 
-class ExportGroup(typer.core.TyperGroup):
-    """Permite ejecutar 'deckard export <objetivo>' directamente o subcomandos como 'deckard export init-templates'."""
-
-    def resolve_command(self, ctx, args):
-        cmd_name = args[0] if args else None
-        if cmd_name:
-            cmd = self.get_command(ctx, cmd_name)
-            if cmd is not None:
-                return super().resolve_command(ctx, args)
-        return super().resolve_command(ctx, ["run"] + args)
-
-
 export_app = typer.Typer(
-    cls=ExportGroup,
+    cls=DefaultCommandGroup,
     name="export",
     help="Exportación multiformato (PDF, Markdown, HTML) y gestión de plantillas.",
     no_args_is_help=True,
 )
 app.add_typer(export_app, name="export")
 
+templates_sub_app = typer.Typer(
+    name="templates",
+    help="Gestión y personalización de plantillas y CSS para exportación.",
+    no_args_is_help=True,
+)
+export_app.add_typer(templates_sub_app, name="templates")
 
+
+@templates_sub_app.command("init")
 @export_app.command("init-templates")
 @export_app.command("init")
 def export_init_templates(
@@ -626,6 +648,32 @@ def export_init_templates(
     if not creados:
         console.print("  [yellow]Las plantillas ya existían. Usá --force para sobrescribir.[/yellow]")
     console.print("\nPodés editar [bold]estilos.css[/bold], [bold]ejercicio.html[/bold], [bold]ejercicio.md[/bold] o agregar imágenes en este directorio.")
+
+
+@templates_sub_app.command("list")
+def export_templates_list() -> None:
+    """Lista las plantillas disponibles (locales, globales y built-in)."""
+    tabla = Table(title="Plantillas y Estilos Disponibles")
+    tabla.add_column("Tipo", style="cyan")
+    tabla.add_column("Ubicación / Archivo", style="green")
+    tabla.add_column("Existe", justify="center")
+
+    builtin_dir = Path(__file__).parent / "templates"
+    global_dir = Path.home() / ".config" / "deckard" / "templates"
+    local_dir = Path("templates")
+
+    rutas = [
+        ("Local (./templates)", local_dir),
+        ("Global (~/.config/deckard/templates)", global_dir),
+        ("Built-in (deckard/templates)", builtin_dir),
+    ]
+    for tipo, d in rutas:
+        if d.is_dir():
+            archivos = [f.name for f in sorted(d.iterdir()) if f.is_file()]
+            tabla.add_row(tipo, f"{d} ({', '.join(archivos)})", "[green]✓[/green]")
+        else:
+            tabla.add_row(tipo, str(d), "[dim]—[/dim]")
+    console.print(tabla)
 
 
 @export_app.command("run", hidden=True)
@@ -1288,7 +1336,9 @@ def spec_compose_cmd(
 # ---------------------------------------------------------------------------
 
 
-@app.command("test-harness")
+@verify_app.command("test-harness")
+@verify_app.command("harness")
+@app.command("test-harness", hidden=True)
 def test_harness(
     ejercicio_id: str = typer.Argument(..., help="Id del ejercicio en el banco."),
     spec: Path = typer.Argument(..., exists=True, help="spec.yaml del arnés."),

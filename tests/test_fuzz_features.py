@@ -131,3 +131,20 @@ def test_fuzz_single_marca_no_verificado(banco_fuzz, tmp_path):
         # Comprobar log
         assert log_file.is_file()
         assert "Compilation error in fuzz test" in log_file.read_text(encoding="utf-8")
+
+
+def test_verify_fuzz_subcommand(banco_fuzz):
+    # Probar que 'verify fuzz' funciona idénticamente
+    with patch("shutil.which", return_value="/usr/bin/dredd"), \
+         patch("subprocess.run") as mock_run:
+        mock_res = MagicMock()
+        mock_res.returncode = 0
+        mock_res.stderr = ""
+        mock_run.return_value = mock_res
+
+        res = runner.invoke(app, [
+            "verify", "fuzz", "ej-fuzz-ok",
+            "--banco", str(banco_fuzz),
+        ])
+        assert res.exit_code == 0
+        assert mock_run.called

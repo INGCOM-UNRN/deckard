@@ -219,7 +219,7 @@ def test_export_pdf_via_pipeline_markdown(banco_con_tests, tmp_path):
 
 def test_init_templates(tmp_path):
     dest = tmp_path / "custom_templates"
-    res = runner.invoke(app, ["export", "init-templates", str(dest)])
+    res = runner.invoke(app, ["export", "templates", "init", str(dest)])
     assert res.exit_code == 0
     assert (dest / "ejercicio.html").is_file()
     assert (dest / "guia.html").is_file()
@@ -227,11 +227,22 @@ def test_init_templates(tmp_path):
     assert (dest / "guia.md").is_file()
     assert (dest / "estilos.css").is_file()
 
-    # Probar alias corto 'export init'
+    # Probar alias directo 'export init-templates'
     dest2 = tmp_path / "custom_templates_2"
-    res2 = runner.invoke(app, ["export", "init", str(dest2)])
+    res2 = runner.invoke(app, ["export", "init-templates", str(dest2)])
     assert res2.exit_code == 0
     assert (dest2 / "ejercicio.html").is_file()
+
+    # Probar alias corto 'export init'
+    dest3 = tmp_path / "custom_templates_3"
+    res3 = runner.invoke(app, ["export", "init", str(dest3)])
+    assert res3.exit_code == 0
+    assert (dest3 / "ejercicio.html").is_file()
+
+    # Probar 'export templates list'
+    res_ls = runner.invoke(app, ["export", "templates", "list"])
+    assert res_ls.exit_code == 0
+    assert "Plantillas y Estilos" in res_ls.stdout
 
 
 def test_export_con_imagen_en_plantilla(banco_con_tests, tmp_path):
