@@ -287,5 +287,58 @@ def pack(
         raise typer.Exit(code=1)
 
 
+# ---------------------------------------------------------------------------
+# multiplex
+# ---------------------------------------------------------------------------
+
+
+@app.command("multiplex")
+def multiplex(
+    spec: Path = typer.Option(..., "--spec", "-s", exists=True, help="Ruta al archivo matriz.yaml."),
+    students: Optional[Path] = typer.Option(None, "--students", exists=True, help="CSV con lista de alumnos."),
+    salida: Path = typer.Option(Path("dist/multiplex"), "--salida", "-o", help="Directorio destino de la multiplexación."),
+    pack: bool = typer.Option(True, "--pack/--no-pack", help="Generar paquetes .ripkg para cada variante."),
+    starters: bool = typer.Option(True, "--starters/--no-starters", help="Generar starter repos por alumno."),
+) -> None:
+    """tp-multiplexer: Genera variantes combinatorias y asignación determinista por alumno."""
+    from deckard.core.multiplex import multiplexar_tp
+
+    try:
+        resultado = multiplexar_tp(
+            matriz_path=spec,
+            students_path=students,
+            output_dir=salida,
+            pack_ripkg=pack,
+            generar_starters=starters,
+        )
+
+        console.print(f"[bold green]✓ Multiplexación completada para '{resultado.ejercicio}'[/bold green]")
+        console.print(f"  • Total de variantes combinatorias: [cyan]{resultado.total_variantes}[/cyan]")
+        console.print(f"  • Directorio de salida: [dim]{resultado.output_dir}[/dim]")
+
+        if resultado.asignaciones:
+            console.print(f"  • Estudiantes asignados: [green]{len(resultado.asignaciones)}[/green]")
+            tabla = Table(title="Muestra de asignaciones deterministas (primeros 5)")
+            tabla.add_column("Alumno ID", style="cyan")
+            tabla.add_column("Nombre")
+            tabla.add_column("Variante", style="green")
+            tabla.add_column("Parámetros", style="dim")
+
+            for asig in resultado.asignaciones[:5]:
+                tabla.add_row(
+                    asig.alumno.id,
+                    asig.alumno.nombre or "—",
+                    asig.variante.id,
+                    str(asig.variante.parametros),
+                )
+            console.print(tabla)
+            console.print(f"  ↳ Planilla completa en: [bold]{resultado.output_dir / 'asignaciones.csv'}[/bold]")
+
+    except Exception as e:
+        console.print(f"[red]Error durante la multiplexación: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
 import subprocess  # noqa: E402
+
 
