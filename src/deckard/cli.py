@@ -121,16 +121,37 @@ def nuevo_ejercicio(
     bloom: int = typer.Option(3, "--bloom", min=1, max=5),
     minutos: int = typer.Option(20, "--minutos", min=1),
     banco: Path = typer.Option(Path("banco"), "--banco"),
+    funcion: Optional[List[str]] = typer.Option(None, "--funcion", "-F", help="Firmas de funciones requeridas (ej: 'void invertir_vector(int* vec, size_t n)')."),
 ) -> None:
-    """Crea un ejercicio nuevo con esqueleto de metadata y solución."""
+    """Crea un ejercicio nuevo con esqueleto de metadata, funciones y solución."""
+    from deckard.core.models import FuncionSpec
+
+    funciones_specs = []
+    if funcion:
+        for f_item in funcion:
+            for part in f_item.split(";"):
+                if part.strip():
+                    funciones_specs.append(FuncionSpec.parse(part.strip()))
+
     ejercicio = Ejercicio(
-        id=eid, titulo=titulo, tema=tema,
-        bloom=NivelBloom(bloom), minutos_estimados=minutos,
+        id=eid,
+        titulo=titulo,
+        tema=tema,
+        bloom=NivelBloom(bloom),
+        minutos_estimados=minutos,
         enunciado_md=f"# {titulo}\n\n(Completar enunciado)\n",
-        solucion_c="#include <stdio.h>\n\nint main(void) {\n    /* TODO */\n    return 0;\n}\n",
+        solucion_c="",
+        funciones=funciones_specs,
     )
+    if funciones_specs:
+        ejercicio.solucion_c = ejercicio.generar_esqueleto_c()
+    else:
+        ejercicio.solucion_c = "#include <stdio.h>\n\nint main(void) {\n    /* TODO */\n    return 0;\n}\n"
+
     destino = guardar_ejercicio(ejercicio, banco)
     console.print(f"[green]✓ Ejercicio creado[/green] en {destino}")
+    if funciones_specs:
+        console.print(f"  • Cabecera generada: [cyan]{eid}.h[/cyan] ({len(funciones_specs)} funciones declaradas)")
     console.print("Editá [bold]ejercicio.yaml[/bold] y [bold]solucion.c[/bold], luego corré [bold]deckard verify[/bold].")
 
 
@@ -208,6 +229,11 @@ def show_ejercicio(
     if raw:
         if meta:
             print(f"ID: {ej.id}\nTitulo: {ej.titulo}\nTema: {ej.tema}\nBloom: B{int(ej.bloom)}\nMinutos: {ej.minutos_estimados}\nVerificado: {ej.verificado}")
+        if ej.funciones:
+            print("\n--- FUNCIONES REQUERIDAS ---")
+            for fn in ej.funciones:
+                desc = f" ({fn.descripcion})" if fn.descripcion else ""
+                print(f"* {fn.firma}{desc}")
         if enunciado:
             print(f"\n--- ENUNCIADO ---\n{ej.enunciado_md}")
         if pistas and ej.pistas:
@@ -215,6 +241,11 @@ def show_ejercicio(
             for i, p in enumerate(ej.pistas, 1):
                 print(f"{i}. {p}")
         if tests:
+            if ej.tests_funciones:
+                print("\n--- TESTS DE FUNCIONES ---")
+                for tf in ej.tests_funciones:
+                    detalle = tf.codigo.strip() if tf.codigo else f"{tf.funcion}({tf.args or ''}) == {tf.retorno_esperado or 'void'}"
+                    print(f"[{tf.nombre}] (fn: {tf.funcion})\n{detalle}\n")
             casos = cargar_tests_ejercicio(dir_ej)
             if casos:
                 print("\n--- TESTS ---")
@@ -232,9 +263,21 @@ def show_ejercicio(
         grid.add_row("Bloom:", f"B{int(ej.bloom)} {ej.bloom.name.lower()}")
         grid.add_row("Carga estimada:", f"~{ej.minutos_estimados} min")
         grid.add_row("Verificado:", "[green]✓ Sí[/green]" if ej.verificado else "[dim]— No[/dim]")
+        if ej.funciones:
+            grid.add_row("Funciones C:", f"{len(ej.funciones)} requeridas")
+        if ej.tests_funciones:
+            grid.add_row("Tests de función:", f"{len(ej.tests_funciones)} declarados")
         if ej.tags:
             grid.add_row("Tags:", ", ".join(ej.tags))
         console.print(Panel(grid, title=f"[bold cyan]{ej.id}[/bold cyan] — {ej.titulo}", border_style="blue"))
+
+    if ej.funciones:
+        tabla_fn = Table(title="🛠️ Funciones / Interfaz C Requerida")
+        tabla_fn.add_column("Firma / Prototipo", style="green")
+        tabla_fn.add_column("Descripción", style="dim")
+        for fn in ej.funciones:
+            tabla_fn.add_row(fn.firma, fn.descripcion or "—")
+        console.print(tabla_fn)
 
     if enunciado:
         console.print(Markdown(ej.enunciado_md))
@@ -244,17 +287,27 @@ def show_ejercicio(
         console.print(Panel(texto_pistas, title="💡 Pistas Progresivas", border_style="yellow"))
 
     if tests:
+        if ej.tests_funciones:
+            tabla_tf = Table(title="🧪 Tests de Funciones (Invocación Directa)")
+            tabla_tf.add_column("Test", style="cyan")
+            tabla_tf.add_column("Función")
+            tabla_tf.add_column("Invocación / Aserción")
+            for tf in ej.tests_funciones:
+                c_str = tf.codigo.strip() if tf.codigo else f"{tf.funcion}({tf.args or ''}) == {tf.retorno_esperado or 'void'}"
+                tabla_tf.add_row(tf.nombre, f"[bold]{tf.funcion}[/bold]", c_str)
+            console.print(tabla_tf)
+
         casos = cargar_tests_ejercicio(dir_ej)
         if casos:
-            tabla_t = Table(title="🧪 Casos de Prueba (tests/)")
+            tabla_t = Table(title="🧪 Casos de Prueba I/O (tests/)")
             tabla_t.add_column("Caso", style="cyan")
             tabla_t.add_column("Entrada (.in)")
             tabla_t.add_column("Salida (.out)")
             for c in casos:
                 tabla_t.add_row(c["nombre"], c["entrada"].strip(), c["salida"].strip())
             console.print(tabla_t)
-        else:
-            console.print("[dim]No se encontraron casos de prueba en tests/.[/dim]")
+        elif not ej.tests_funciones:
+            console.print("[dim]No se encontraron casos de prueba en tests/ ni tests de funciones.[/dim]")
 
     if solucion and ej.solucion_c:
         console.print(Panel(

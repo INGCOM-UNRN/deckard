@@ -202,7 +202,13 @@ def empaquetar_ejercicio(
         texto_pistas = "\n".join(f"{i}. {p}" for i, p in enumerate(ejercicio.pistas, 1))
         payload["pistas.txt"] = texto_pistas.encode("utf-8")
 
-    # 3. Testcases
+    # 3. Cabecera C si existen funciones declaradas
+    if ejercicio.funciones:
+        header_content = ejercicio.generar_cabecera_c().encode("utf-8")
+        payload[f"{ejercicio.id}.h"] = header_content
+        payload["ejercicio.h"] = header_content
+
+    # 4. Testcases y recursos
     tests_dir = dir_ejercicio / "tests"
     if tests_dir.is_dir():
         for f in sorted(tests_dir.rglob("*")):
@@ -210,7 +216,7 @@ def empaquetar_ejercicio(
                 rel_name = str(f.relative_to(tests_dir))
                 payload[rel_name] = f.read_bytes()
 
-    # 4. Manifiesto y bundle .ripkg
+    # 5. Manifiesto y bundle .ripkg
     manifest = build_manifest(
         practica_slug=ejercicio.id,
         enabled_check_ids=checks,
@@ -253,6 +259,10 @@ def exportar_starter_repo(
 
     # 1. README.md con consigna
     readme_content = f"# {ej.titulo}\n\n{ej.enunciado_md}\n"
+    if ej.funciones:
+        readme_content += "\n## Funciones a Implementar\n"
+        for fn in ej.funciones:
+            readme_content += f"- `{fn.firma}`\n"
     if ej.pistas:
         readme_content += "\n## Pistas\n"
         for i, p in enumerate(ej.pistas, 1):
@@ -260,15 +270,19 @@ def exportar_starter_repo(
     readme_content += "\n## Verificación\n\nPodés verificar tu solución corriendo:\n```bash\nripley check .\n```\no usando `make test`.\n"
     (destino / "README.md").write_text(readme_content, encoding="utf-8")
 
-    # 2. main.c plantilla esqueleto
-    main_c = (
-        f"/* {ej.titulo} */\n"
-        "#include <stdio.h>\n\n"
-        "int main(void) {\n"
-        "    /* TODO: implementá tu solución aquí */\n"
-        "    return 0;\n"
-        "}\n"
-    )
+    # 2. Archivos fuente / cabeceras
+    if ej.funciones:
+        (destino / f"{ej.id}.h").write_text(ej.generar_cabecera_c(), encoding="utf-8")
+        main_c = ej.generar_esqueleto_c()
+    else:
+        main_c = (
+            f"/* {ej.titulo} */\n"
+            "#include <stdio.h>\n\n"
+            "int main(void) {\n"
+            "    /* TODO: implementá tu solución aquí */\n"
+            "    return 0;\n"
+            "}\n"
+        )
     (destino / "main.c").write_text(main_c, encoding="utf-8")
 
     # 3. Makefile básico

@@ -42,6 +42,11 @@ def guardar_ejercicio(ejercicio: Ejercicio, dir_base: Path) -> Path:
     if ejercicio.solucion_c and not solucion.exists():
         solucion.write_text(ejercicio.solucion_c, encoding="utf-8")
 
+    if ejercicio.funciones:
+        header = destino / f"{ejercicio.id}.h"
+        if not header.exists():
+            header.write_text(ejercicio.generar_cabecera_c(), encoding="utf-8")
+
     datos = ejercicio.to_yaml_dict()
     solucion_texto = datos.pop("solucion_c", None)
     with open(destino / ARCHIVO_EJERCICIO, "w", encoding="utf-8") as f:

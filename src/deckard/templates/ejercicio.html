@@ -238,6 +238,20 @@ pre code {
     {{ enunciado_html | safe }}
 </div>
 
+{% if ejercicio.funciones %}
+<div class="section-title">🛠️ Funciones a Implementar</div>
+<div class="solucion-box" style="border-left-color: #2563eb; background-color: #f8fafc;">
+    <ul style="margin: 0; padding-left: 20px; font-family: monospace; font-size: 9pt;">
+        {% for fn in ejercicio.funciones %}
+        <li style="margin-bottom: 4px;">
+            <strong>{{ fn.firma }}</strong>
+            {% if fn.descripcion %}<div style="color: #64748b; font-family: sans-serif; font-size: 8.5pt;">{{ fn.descripcion }}</div>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 {% if incluir_pistas and ejercicio.pistas %}
 <div class="pistas-box">
     <div class="pistas-title">💡 Pistas Progresivas</div>
@@ -249,8 +263,31 @@ pre code {
 </div>
 {% endif %}
 
-{% if incluir_tests and tests_casos %}
-<div class="section-title">🧪 Casos de Prueba</div>
+{% if incluir_tests %}
+{% if ejercicio.tests_funciones %}
+<div class="section-title">🧪 Tests de Funciones (Invocación Directa)</div>
+<table class="tests-table">
+    <thead>
+        <tr>
+            <th style="width: 25%;">Test</th>
+            <th style="width: 25%;">Función</th>
+            <th style="width: 50%;">Invocación / Aserción</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for tf in ejercicio.tests_funciones %}
+        <tr>
+            <td><strong>{{ tf.nombre }}</strong></td>
+            <td><code>{{ tf.funcion }}</code></td>
+            <td><pre style="margin:0; padding:2px;">{% if tf.codigo %}{{ tf.codigo }}{% else %}{{ tf.funcion }}({{ tf.args or '' }}) == {{ tf.retorno_esperado or 'void' }}{% endif %}</pre></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if tests_casos %}
+<div class="section-title">🧪 Casos de Prueba (I/O)</div>
 <table class="tests-table">
     <thead>
         <tr>
@@ -269,6 +306,7 @@ pre code {
         {% endfor %}
     </tbody>
 </table>
+{% endif %}
 {% endif %}
 
 {% if incluir_solucion and ejercicio.solucion_c %}
