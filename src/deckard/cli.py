@@ -1184,6 +1184,8 @@ def exportar_contenido(
     bloom: Optional[int] = typer.Option(None, "--bloom", "-b", help="Filtrar por nivel Bloom (1-5)."),
     tag: Optional[str] = typer.Option(None, "--tag", help="Filtrar por etiqueta/tag."),
     verificado: Optional[bool] = typer.Option(None, "--verificado/--no-verificado", help="Filtrar por estado de verificación."),
+    single_pdf: bool = typer.Option(False, "--single-pdf", "--combined", "-c", help="Generar un único PDF consolidado cuando hay múltiples ejercicios para exportar."),
+    titulo: Optional[str] = typer.Option(None, "--titulo", help="Título del compendio consolidado (usado con --single-pdf)."),
 ) -> None:
     """Exporta ejercicios o guías a Typst, PDF, Markdown o HTML con plantillas personalizables, comodines y filtros."""
     tipos = _parse_output_types(type)
@@ -1333,6 +1335,98 @@ def exportar_contenido(
         raise typer.Exit(code=1)
 
     es_multiple = len(candidatos) > 1 or todos or bool(patron and ("*" in patron or "?" in patron))
+
+    if single_pdf or (len(candidatos) > 1 and salida and not salida.is_dir() and salida.suffix.lower() == ".pdf" and len(tipos) == 1 and tipos[0] == "pdf"):
+        # Exportar todos los candidatos consolidados en un único documento / PDF
+        titulo_compendio = titulo or (
+            f"Guía de Ejercicios — Tema: {tema.capitalize()}" if tema else
+            f"Compendio de Ejercicios ({len(candidatos)} ejercicios)"
+        )
+        guia_meta = {
+            "titulo": titulo_compendio,
+            "materia": "Programación 1",
+            "descripcion": f"Compendio generado automáticamente con {len(candidatos)} ejercicios del banco.",
+        }
+        for fmt in tipos:
+            if salida is not None:
+                if len(tipos) == 1 and not salida.is_dir() and salida.suffix:
+                    dest = salida
+                elif salida.is_dir() or not salida.suffix or str(salida).endswith(("/", "\\")):
+                    nombre_base = Path(objetivo).stem if objetivo and "*" not in objetivo else (f"compendio_{tema}" if tema else "compendio")
+                    dest = salida / f"{nombre_base}.{fmt}"
+                else:
+                    dest = salida.with_suffix(f".{fmt}")
+            else:
+                nombre_base = Path(objetivo).stem if objetivo and "*" not in objetivo else (f"compendio_{tema}" if tema else "compendio")
+                dest = Path(f"{nombre_base}.{fmt}")
+
+            dest.parent.mkdir(parents=True, exist_ok=True)
+
+            if fmt == "md":
+                md_salida, _ = renderizar_guia_md(
+                    guia_meta=guia_meta,
+                    ejercicios_con_dir=candidatos,
+                    template_nombre_o_ruta=template,
+                    incluir_soluciones=solucion,
+                    incluir_pistas=pistas,
+                    dir_banco=banco,
+                )
+                dest.write_text(md_salida, encoding="utf-8")
+                console.print(f"[green]✓ Compendio consolidado ({len(candidatos)} ejercicios) exportado a Markdown:[/green] {dest}")
+            elif fmt in ("typ", "typst"):
+                typ_salida, _ = renderizar_guia_typst(
+                    guia_meta=guia_meta,
+                    ejercicios_con_dir=candidatos,
+                    template_nombre_o_ruta=template,
+                    incluir_soluciones=solucion,
+                    incluir_pistas=pistas,
+                    dir_banco=banco,
+                )
+                dest.write_text(typ_salida, encoding="utf-8")
+                console.print(f"[green]✓ Compendio consolidado ({len(candidatos)} ejercicios) exportado a Typst:[/green] {dest}")
+            elif fmt == "html":
+                html_salida, _ = renderizar_guia_html(
+                    guia_meta=guia_meta,
+                    ejercicios_con_dir=candidatos,
+                    template_nombre_o_ruta=template,
+                    incluir_soluciones=solucion,
+                    incluir_pistas=pistas,
+                    extra_css=extra_css_str,
+                    dir_banco=banco,
+                    via_markdown_pipeline=pipeline_md,
+                )
+                dest.write_text(html_salida, encoding="utf-8")
+                console.print(f"[green]✓ Compendio consolidado ({len(candidatos)} ejercicios) exportado a HTML:[/green] {dest}")
+            elif fmt == "pdf":
+                try:
+                    typst_salida, base_p = renderizar_guia_typst(
+                        guia_meta=guia_meta,
+                        ejercicios_con_dir=candidatos,
+                        template_nombre_o_ruta=template,
+                        incluir_soluciones=solucion,
+                        incluir_pistas=pistas,
+                        dir_banco=banco,
+                    )
+                    pdf_path = compilar_typst_a_pdf(typst_salida, dest, root_dir=base_p)
+                    console.print(f"[green]✓ Compendio consolidado ({len(candidatos)} ejercicios) exportado a PDF (Typst):[/green] {pdf_path}")
+                except Exception as e_typst:
+                    try:
+                        html_salida, base_p = renderizar_guia_html(
+                            guia_meta=guia_meta,
+                            ejercicios_con_dir=candidatos,
+                            template_nombre_o_ruta=template,
+                            incluir_soluciones=solucion,
+                            incluir_pistas=pistas,
+                            extra_css=extra_css_str,
+                            dir_banco=banco,
+                            via_markdown_pipeline=pipeline_md,
+                        )
+                        pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
+                        console.print(f"[green]✓ Compendio consolidado ({len(candidatos)} ejercicios) exportado a PDF:[/green] {pdf_path}")
+                    except Exception as e:
+                        console.print(f"[red]Error exportando PDF: {e_typst or e}[/red]")
+                        raise typer.Exit(code=1)
+        return
 
     if len(candidatos) == 1 and not es_multiple:
         dir_ej, ej = candidatos[0]

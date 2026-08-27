@@ -198,3 +198,43 @@ def test_export_criterios_sin_resultados_falla(banco_poblado):
     ])
     assert res.exit_code == 1
     assert "No se encontró ningún ejercicio" in res.stdout
+
+
+def test_export_single_pdf_consolida_ejercicios(banco_poblado, tmp_path):
+    """Debe generar un único documento consolidado con --single-pdf."""
+    out_file = tmp_path / "compendio_arreglos.typ"
+    res = runner.invoke(app, [
+        "export",
+        "--tema", "arreglos",
+        "--banco", str(banco_poblado),
+        "--type", "typst",
+        "--single-pdf",
+        "--titulo", "Guía Completa de Arreglos",
+        "-o", str(out_file)
+    ])
+    assert res.exit_code == 0
+    assert out_file.is_file()
+    contenido = out_file.read_text(encoding="utf-8")
+    assert "Guía Completa de Arreglos" in contenido
+    assert "Invertir Vector" in contenido
+    assert "Ordenar Vector" in contenido
+
+
+def test_export_single_pdf_md(banco_poblado, tmp_path):
+    """Debe generar un único Markdown consolidado con --single-pdf."""
+    out_file = tmp_path / "todos_ejercicios.md"
+    res = runner.invoke(app, [
+        "export", "--all",
+        "--banco", str(banco_poblado),
+        "--type", "md",
+        "--single-pdf",
+        "-o", str(out_file)
+    ])
+    assert res.exit_code == 0
+    assert out_file.is_file()
+    contenido = out_file.read_text(encoding="utf-8")
+    assert "Invertir Vector" in contenido
+    assert "Ordenar Vector" in contenido
+    assert "Longitud de Cadena" in contenido
+    assert "Intercambio de Punteros" in contenido
+
