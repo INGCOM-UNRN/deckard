@@ -63,15 +63,16 @@ class CasoTestFuncion(BaseModel):
 class Ejercicio(BaseModel):
     """Un ejercicio práctico versionado como unidad atómica de cátedra."""
 
-    model_config = ConfigDict(validate_assignment=True)
+    model_config = ConfigDict(validate_assignment=True, populate_by_name=True)
 
     id: str = Field(..., pattern=r"^[a-z0-9][a-z0-9_-]*$")
     titulo: str
     tema: str                       # p.ej. "punteros", "memoria_dinamica"
     bloom: NivelBloom
-    minutos_estimados: int = Field(..., ge=1, le=600)
-    enunciado_md: str               # markdown del enunciado
+    minutos_estimados: int = Field(..., ge=1, le=600, alias="minutos")
+    enunciado_md: str = ""          # markdown del enunciado
     solucion_c: str = ""            # solución modelo (verificada con ripley)
+    starter_code: str = ""          # código inicial o prototipo
     pistas: List[str] = Field(default_factory=list)  # progresivas, ordenadas
     tags: List[str] = Field(default_factory=list)
     verificado: bool = False        # lo setea `deckard verify`

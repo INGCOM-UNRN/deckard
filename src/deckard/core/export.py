@@ -247,6 +247,7 @@ def renderizar_guia_typst(
     incluir_soluciones: bool = False,
     incluir_pistas: bool = False,
     dir_banco: Optional[Path] = None,
+    dos_columnas: bool = False,
 ) -> Tuple[str, Optional[Path]]:
     """Renderiza una guía completa a formato Typst (.typ)."""
     template_str, base_path = buscar_plantilla(
@@ -272,6 +273,7 @@ def renderizar_guia_typst(
         total_minutos=total_min,
         incluir_soluciones=incluir_soluciones,
         incluir_pistas=incluir_pistas,
+        dos_columnas=dos_columnas,
     )
     return typst_salida, base_path
 

@@ -2,7 +2,12 @@
 #set document(title: "{{ guia.materia | default('Algoritmos y Programación en C') }} - {{ guia.titulo | default('Guía de Ejercicios') }}", author: "Cátedra")
 #set page(
   paper: "a4",
+  {% if dos_columnas %}
+  columns: 2,
+  margin: (top: 1.5cm, bottom: 1.5cm, left: 1.5cm, right: 1.5cm),
+  {% else %}
   margin: (top: 2.5cm, bottom: 2.5cm, left: 2.5cm, right: 2.5cm),
+  {% endif %}
   header: align(right)[
     #text(size: 8.5pt, fill: rgb("666666"))[{{ guia.institucion | default('Universidad') }} — {{ guia.materia | default('Programación en C') }}]
   ],
@@ -16,8 +21,8 @@
   ]
 )
 
-#set text(font: ("Liberation Sans", "DejaVu Sans", "Arial"), size: 10.5pt, lang: "es")
-#set par(justify: true, leading: 0.7em)
+#set text(font: ("Liberation Sans", "DejaVu Sans", "Arial"), size: {{ "9pt" if dos_columnas else "10.5pt" }}, lang: "es")
+#set par(justify: true, leading: {{ "0.55em" if dos_columnas else "0.7em" }})
 
 // Encabezado Principal
 #align(center)[

@@ -388,3 +388,49 @@ def empaquetar_guia(
 
     return resultados
 
+
+def empaquetar_bundle_deckard(ruta_origen: Path, salida_tar: Optional[Path] = None) -> Path:
+    """Empaqueta una carpeta de ejercicios o guía en un bundle .deckard.tar.gz."""
+    import tarfile
+
+    origen = Path(ruta_origen).resolve()
+    if not origen.exists():
+        raise PackError(f"Ruta de origen inexistente: {origen}")
+
+    if salida_tar:
+        dest = Path(salida_tar).resolve()
+    else:
+        dest = origen.parent / f"{origen.name}.deckard.tar.gz"
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    with tarfile.open(dest, "w:gz") as tar:
+        if origen.is_dir():
+            for item in origen.rglob("*"):
+                if any(part.startswith(".") for part in item.parts):
+                    continue
+                arcname = item.relative_to(origen)
+                tar.add(item, arcname=str(arcname))
+        else:
+            tar.add(origen, arcname=origen.name)
+
+    return dest
+
+
+def desempaquetar_bundle_deckard(tar_path: Path, destino_dir: Path) -> Path:
+    """Extrae un bundle .deckard.tar.gz o .tar.gz en el directorio destino."""
+    import tarfile
+
+    src = Path(tar_path).resolve()
+    if not src.is_file():
+        raise PackError(f"Archivo de paquete inexistente: {src}")
+
+    dest = Path(destino_dir).resolve()
+    dest.mkdir(parents=True, exist_ok=True)
+
+    with tarfile.open(src, "r:*") as tar:
+        tar.extractall(path=dest)
+
+    return dest
+
+
