@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from enum import IntEnum
+from pathlib import Path
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -80,6 +81,50 @@ class Ejercicio(BaseModel):
     @property
     def tiene_funciones(self) -> bool:
         return bool(self.funciones or self.tests_funciones)
+
+    @property
+    def tipo_ejercicio(self) -> str:
+        """Determina el tipo de ejercicio (funciones vs io)."""
+        return "funciones" if self.tiene_funciones else "io"
+
+    def ruta_categoria(self, criterio: str = "bloom/tipo") -> Path:
+        """Calcula el directorio relativo dentro del banco según el criterio indicado."""
+        c = criterio.lower().replace("-", "/").strip()
+        bloom_slug = f"b{int(self.bloom)}-{self.bloom.name.lower()}"
+        tipo_slug = self.tipo_ejercicio
+        tema_slug = re.sub(r"[^a-z0-9_-]+", "-", self.tema.lower()).strip("-") or "general"
+
+        if c in ("bloom", "b"):
+            return Path(bloom_slug) / self.id
+        elif c in ("tipo", "t"):
+            return Path(tipo_slug) / self.id
+        elif c in ("tema",):
+            return Path(tema_slug) / self.id
+        elif c in ("bloom/tipo", "bloom-tipo"):
+            return Path(bloom_slug) / tipo_slug / self.id
+        elif c in ("tipo/bloom", "tipo-bloom"):
+            return Path(tipo_slug) / bloom_slug / self.id
+        elif c in ("tema/bloom", "tema-bloom"):
+            return Path(tema_slug) / bloom_slug / self.id
+        elif c in ("bloom/tema", "bloom-tema"):
+            return Path(bloom_slug) / tema_slug / self.id
+        elif c in ("tema/tipo", "tema-tipo"):
+            return Path(tema_slug) / tipo_slug / self.id
+        elif c in ("plano", "flat", "root"):
+            return Path(self.id)
+        else:
+            tokens = [t.strip() for t in c.split("/") if t.strip()]
+            partes = []
+            for token in tokens:
+                if token in ("bloom", "b"):
+                    partes.append(bloom_slug)
+                elif token in ("tipo", "type", "t"):
+                    partes.append(tipo_slug)
+                elif token in ("tema", "topic"):
+                    partes.append(tema_slug)
+            if not partes:
+                partes = [bloom_slug, tipo_slug]
+            return Path(*partes) / self.id
 
     @field_validator("pistas")
     @classmethod

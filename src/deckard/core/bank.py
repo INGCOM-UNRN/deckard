@@ -1,18 +1,28 @@
-"""Banco de ejercicios: carga/guardado YAML y algoritmo de composición de guías."""
-
 from __future__ import annotations
 
+import fnmatch
+import shutil
+import tempfile
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import yaml
 
 from deckard.core.models import Ejercicio, GuiaSpec, NivelBloom, Seleccion
 
-import fnmatch
-from typing import List, Optional, Tuple
-
 ARCHIVO_EJERCICIO = "ejercicio.yaml"
+
+
+@dataclass
+class MovimientoEjercicio:
+    id: str
+    origen: Path
+    destino: Path
+    cambio: bool
+    bloom: str
+    tipo: str
+    tema: str
 
 
 # ---------------------------------------------------------------------------
@@ -192,3 +202,79 @@ def componer_guia(banco: Path | List[Ejercicio], spec: GuiaSpec) -> Seleccion:
 
     elegidos.sort(key=lambda e: (int(e.bloom), e.minutos_estimados))  # dificultad creciente
     return Seleccion(guia=spec.nombre, ejercicios=elegidos, minutos_totales=minutos)
+
+
+# ---------------------------------------------------------------------------
+# Reorganización de directorios del banco (Bloom / Tipo / Tema)
+# ---------------------------------------------------------------------------
+
+def reorganizar_banco(
+    banco: Path,
+    criterio: str = "bloom/tipo",
+    dir_destino: Optional[Path] = None,
+    dry_run: bool = False,
+    copy: bool = False,
+) -> List[MovimientoEjercicio]:
+    """Reorganiza los ejercicios del banco en subdirectorios según Bloom, tipo y/o tema."""
+    banco = Path(banco)
+    destino_base = Path(dir_destino) if dir_destino else banco
+    candidatos = buscar_ejercicios(banco, recursivo=True)
+
+    movimientos: List[MovimientoEjercicio] = []
+
+    for dir_origen, ej in candidatos:
+        rel_target = ej.ruta_categoria(criterio)
+        target_path = destino_base / rel_target
+
+        cambio = dir_origen.resolve() != target_path.resolve()
+        movimientos.append(
+            MovimientoEjercicio(
+                id=ej.id,
+                origen=dir_origen,
+                destino=target_path,
+                cambio=cambio,
+                bloom=f"B{int(ej.bloom)} {ej.bloom.name.lower()}",
+                tipo=ej.tipo_ejercicio,
+                tema=ej.tema,
+            )
+        )
+
+    if not dry_run:
+        if copy:
+            for mov in movimientos:
+                if mov.cambio:
+                    mov.destino.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copytree(mov.origen, mov.destino, dirs_exist_ok=True)
+        else:
+            # Para evitar colisiones en movimientos en el mismo árbol, usamos directorio temporal intermedio
+            banco_parent = banco.parent if banco.parent.is_dir() else Path(".")
+            with tempfile.TemporaryDirectory(dir=banco_parent, prefix="deckard_reorg_") as tmp_dir:
+                tmp_path = Path(tmp_dir)
+                temp_movs = []
+                for mov in movimientos:
+                    if mov.cambio:
+                        temp_dest = tmp_path / mov.id
+                        shutil.move(str(mov.origen), str(temp_dest))
+                        temp_movs.append((temp_dest, mov.destino))
+
+                for temp_src, final_dest in temp_movs:
+                    final_dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(temp_src), str(final_dest))
+
+            _limpiar_directorios_vacios(banco)
+
+    return movimientos
+
+
+def _limpiar_directorios_vacios(raiz: Path) -> None:
+    """Elimina recursivamente subdirectorios vacíos en la raíz."""
+    if not raiz.is_dir():
+        return
+    for hijo in sorted(raiz.iterdir(), key=lambda p: len(str(p)), reverse=True):
+        if hijo.is_dir():
+            _limpiar_directorios_vacios(hijo)
+            try:
+                hijo.rmdir()
+            except OSError:
+                pass
+

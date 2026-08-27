@@ -192,6 +192,104 @@ def bank_list(
     console.print(f"[dim]{total_min} minutos totales ({total_min/60:.1f}h) · Verificados: {verificados_count}/{len(items)} ({pct:.0f}%)[/dim]")
 
 
+@bank_app.command("organize")
+@bank_app.command("reorganize")
+@app.command("organize")
+def bank_organize(
+    banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco de ejercicios."),
+    criterio: str = typer.Option(
+        "bloom/tipo",
+        "--by",
+        "-b",
+        "--criterio",
+        help="Criterio de reorganización: 'bloom', 'tipo', 'bloom/tipo', 'tipo/bloom', 'tema/bloom', 'bloom/tema', 'tema/tipo', 'plano'.",
+    ),
+    destino: Optional[Path] = typer.Option(
+        None,
+        "--destino",
+        "-d",
+        help="Directorio de destino (por defecto, reorganiza dentro del mismo banco).",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        "-n",
+        help="Simula la reorganización y muestra los movimientos sin modificar el disco.",
+    ),
+    copy: bool = typer.Option(
+        False,
+        "--copy",
+        "-c",
+        help="Copia los ejercicios al nuevo esquema en vez de moverlos.",
+    ),
+) -> None:
+    """Reorganiza los ejercicios en carpetas según nivel de Bloom, tipo (funciones vs io) y/o tema."""
+    from deckard.core.bank import reorganizar_banco
+
+    if not banco.is_dir():
+        console.print(f"[bold red]El directorio del banco no existe:[/bold red] {banco}")
+        raise typer.Exit(code=1)
+
+    movimientos = reorganizar_banco(
+        banco=banco,
+        criterio=criterio,
+        dir_destino=destino,
+        dry_run=dry_run,
+        copy=copy,
+    )
+
+    if not movimientos:
+        console.print(f"[yellow]No se encontraron ejercicios en '{banco}'.[/yellow]")
+        return
+
+    accion_verbo = "Copiado" if copy else "Movido"
+    sim_tag = "[yellow](Simulación / Dry-run)[/yellow] " if dry_run else ""
+
+    tabla = Table(title=f"{sim_tag}Reorganización del Banco (Criterio: {criterio})")
+    tabla.add_column("Ejercicio", style="cyan")
+    tabla.add_column("Bloom")
+    tabla.add_column("Tipo")
+    tabla.add_column("Origen", style="dim")
+    tabla.add_column("Destino", style="green")
+    tabla.add_column("Estado", justify="center")
+
+    total_movidos = 0
+    total_sin_cambio = 0
+
+    for mov in movimientos:
+        try:
+            rel_orig = mov.origen.relative_to(banco).as_posix()
+        except Exception:
+            rel_orig = str(mov.origen)
+        try:
+            target_base = destino or banco
+            rel_dest = mov.destino.relative_to(target_base).as_posix()
+        except Exception:
+            rel_dest = str(mov.destino)
+
+        if mov.cambio:
+            total_movidos += 1
+            estado = f"[green]✓ {accion_verbo}[/green]" if not dry_run else "[yellow]→ Pendiente[/yellow]"
+        else:
+            total_sin_cambio += 1
+            estado = "[dim]— En lugar[/dim]"
+
+        tabla.add_row(
+            mov.id,
+            mov.bloom,
+            f"[magenta]{mov.tipo}[/magenta]",
+            rel_orig,
+            rel_dest,
+            estado,
+        )
+
+    console.print(tabla)
+    console.print(
+        f"\n[bold]Resumen:[/bold] [green]{total_movidos} {'a mover/copiar' if dry_run else 'reorganizados'}[/green] · "
+        f"[dim]{total_sin_cambio} sin cambios[/dim] (Total: {len(movimientos)})"
+    )
+
+
 # ---------------------------------------------------------------------------
 # show (Ver enunciado y secciones)
 # ---------------------------------------------------------------------------
