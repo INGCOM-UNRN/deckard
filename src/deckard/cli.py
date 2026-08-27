@@ -1169,7 +1169,7 @@ def _parse_output_types(tipo_str: str) -> List[str]:
 
 @export_app.command("run", hidden=True)
 def exportar_contenido(
-    objetivo: str = typer.Argument(..., help="Id de ejercicio, comodín ('*'), o ruta a guía (.yaml)."),
+    objetivo: Optional[str] = typer.Argument(None, help="Id de ejercicio, comodín/wildcard ('*', 'invertir-*'), o ruta a guía (.yaml)."),
     type: str = typer.Option("pdf", "--type", "-t", help="Formatos de salida (ej: --type=pdf,md o --type=typst). Separar por comas."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
     salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Archivo de salida o directorio destino."),
@@ -1179,71 +1179,52 @@ def exportar_contenido(
     pistas: bool = typer.Option(False, "--pistas", "-p", help="Incluir pistas progresivas."),
     tests: bool = typer.Option(False, "--tests", help="Incluir casos de prueba."),
     css: Optional[Path] = typer.Option(None, "--css", exists=True, help="Archivo CSS adicional para PDF/HTML."),
+    todos: bool = typer.Option(False, "--all", "-a", help="Exportar todos los ejercicios del banco."),
+    tema: Optional[str] = typer.Option(None, "--tema", "-m", help="Filtrar por tema."),
+    bloom: Optional[int] = typer.Option(None, "--bloom", "-b", help="Filtrar por nivel Bloom (1-5)."),
+    tag: Optional[str] = typer.Option(None, "--tag", help="Filtrar por etiqueta/tag."),
+    verificado: Optional[bool] = typer.Option(None, "--verificado/--no-verificado", help="Filtrar por estado de verificación."),
 ) -> None:
-    """Exporta ejercicios o guías a Typst, PDF, Markdown o HTML con plantillas personalizables."""
+    """Exporta ejercicios o guías a Typst, PDF, Markdown o HTML con plantillas personalizables, comodines y filtros."""
     tipos = _parse_output_types(type)
     extra_css_str = css.read_text(encoding="utf-8") if css else None
-    ruta_obj = Path(objetivo)
 
-    # Caso 1: Archivo de guía YAML
-    if ruta_obj.is_file() and (ruta_obj.suffix in (".yaml", ".yml") or "guia" in ruta_obj.name):
-        guia_meta, items = cargar_guia_con_ejercicios(ruta_obj, banco)
-        validos = [(d, e) for d, e in items if e is not None]
-        if not validos:
-            console.print(f"[red]La guía '{objetivo}' no tiene ejercicios válidos en el banco.[/red]")
+    # Determinar patrón efectivo
+    patron = objetivo
+    if todos:
+        patron = objetivo or "*"
+    elif not objetivo:
+        if tema or bloom or tag or verificado is not None:
+            patron = "*"
+        else:
+            console.print("[red]Debe especificar un objetivo (ID, comodín '*'), ruta a guía (.yaml), '--all' o al menos un filtro (--tema, --bloom, --tag).[/red]")
             raise typer.Exit(code=1)
 
-        for fmt in tipos:
-            if salida is not None:
-                if len(tipos) == 1 and not salida.is_dir() and salida.suffix:
-                    dest = salida
-                elif salida.is_dir() or not salida.suffix or str(salida).endswith(("/", "\\")):
-                    dest = salida / f"{ruta_obj.stem}.{fmt}"
+    # Caso 1: Archivo de guía YAML
+    if objetivo:
+        ruta_obj = Path(objetivo)
+        if ruta_obj.is_file() and (ruta_obj.suffix in (".yaml", ".yml") or "guia" in ruta_obj.name):
+            guia_meta, items = cargar_guia_con_ejercicios(ruta_obj, banco)
+            validos = [(d, e) for d, e in items if e is not None]
+            if not validos:
+                console.print(f"[red]La guía '{objetivo}' no tiene ejercicios válidos en el banco.[/red]")
+                raise typer.Exit(code=1)
+
+            for fmt in tipos:
+                if salida is not None:
+                    if len(tipos) == 1 and not salida.is_dir() and salida.suffix:
+                        dest = salida
+                    elif salida.is_dir() or not salida.suffix or str(salida).endswith(("/", "\\")):
+                        dest = salida / f"{ruta_obj.stem}.{fmt}"
+                    else:
+                        dest = salida.with_suffix(f".{fmt}")
                 else:
-                    dest = salida.with_suffix(f".{fmt}")
-            else:
-                dest = Path(f"{ruta_obj.stem}.{fmt}")
+                    dest = Path(f"{ruta_obj.stem}.{fmt}")
 
-            dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.parent.mkdir(parents=True, exist_ok=True)
 
-            if fmt == "md":
-                md_salida, _ = renderizar_guia_md(
-                    guia_meta=guia_meta,
-                    ejercicios_con_dir=validos,
-                    template_nombre_o_ruta=template,
-                    incluir_soluciones=solucion,
-                    incluir_pistas=pistas,
-                    dir_banco=banco,
-                )
-                dest.write_text(md_salida, encoding="utf-8")
-                console.print(f"[green]✓ Guía exportada a Markdown:[/green] {dest}")
-            elif fmt in ("typ", "typst"):
-                typ_salida, _ = renderizar_guia_typst(
-                    guia_meta=guia_meta,
-                    ejercicios_con_dir=validos,
-                    template_nombre_o_ruta=template,
-                    incluir_soluciones=solucion,
-                    incluir_pistas=pistas,
-                    dir_banco=banco,
-                )
-                dest.write_text(typ_salida, encoding="utf-8")
-                console.print(f"[green]✓ Guía exportada a Typst:[/green] {dest}")
-            elif fmt == "html":
-                html_salida, _ = renderizar_guia_html(
-                    guia_meta=guia_meta,
-                    ejercicios_con_dir=validos,
-                    template_nombre_o_ruta=template,
-                    incluir_soluciones=solucion,
-                    incluir_pistas=pistas,
-                    extra_css=extra_css_str,
-                    dir_banco=banco,
-                    via_markdown_pipeline=pipeline_md,
-                )
-                dest.write_text(html_salida, encoding="utf-8")
-                console.print(f"[green]✓ Guía exportada a HTML:[/green] {dest}")
-            elif fmt == "pdf":
-                try:
-                    typst_salida, base_p = renderizar_guia_typst(
+                if fmt == "md":
+                    md_salida, _ = renderizar_guia_md(
                         guia_meta=guia_meta,
                         ejercicios_con_dir=validos,
                         template_nombre_o_ruta=template,
@@ -1251,38 +1232,109 @@ def exportar_contenido(
                         incluir_pistas=pistas,
                         dir_banco=banco,
                     )
-                    pdf_path = compilar_typst_a_pdf(typst_salida, dest, root_dir=base_p)
-                    console.print(f"[green]✓ Guía exportada a PDF (Typst):[/green] {pdf_path}")
-                except Exception as e_typst:
-                    # Fallback a HTML si la plantilla era HTML
+                    dest.write_text(md_salida, encoding="utf-8")
+                    console.print(f"[green]✓ Guía exportada a Markdown:[/green] {dest}")
+                elif fmt in ("typ", "typst"):
+                    typ_salida, _ = renderizar_guia_typst(
+                        guia_meta=guia_meta,
+                        ejercicios_con_dir=validos,
+                        template_nombre_o_ruta=template,
+                        incluir_soluciones=solucion,
+                        incluir_pistas=pistas,
+                        dir_banco=banco,
+                    )
+                    dest.write_text(typ_salida, encoding="utf-8")
+                    console.print(f"[green]✓ Guía exportada a Typst:[/green] {dest}")
+                elif fmt == "html":
+                    html_salida, _ = renderizar_guia_html(
+                        guia_meta=guia_meta,
+                        ejercicios_con_dir=validos,
+                        template_nombre_o_ruta=template,
+                        incluir_soluciones=solucion,
+                        incluir_pistas=pistas,
+                        extra_css=extra_css_str,
+                        dir_banco=banco,
+                        via_markdown_pipeline=pipeline_md,
+                    )
+                    dest.write_text(html_salida, encoding="utf-8")
+                    console.print(f"[green]✓ Guía exportada a HTML:[/green] {dest}")
+                elif fmt == "pdf":
                     try:
-                        html_salida, base_p = renderizar_guia_html(
+                        typst_salida, base_p = renderizar_guia_typst(
                             guia_meta=guia_meta,
                             ejercicios_con_dir=validos,
                             template_nombre_o_ruta=template,
                             incluir_soluciones=solucion,
                             incluir_pistas=pistas,
-                            extra_css=extra_css_str,
                             dir_banco=banco,
-                            via_markdown_pipeline=pipeline_md,
                         )
-                        pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
-                        console.print(f"[green]✓ Guía exportada a PDF:[/green] {pdf_path}")
-                    except Exception as e:
-                        console.print(f"[red]Error exportando PDF: {e_typst or e}[/red]")
-                        raise typer.Exit(code=1)
-        return
+                        pdf_path = compilar_typst_a_pdf(typst_salida, dest, root_dir=base_p)
+                        console.print(f"[green]✓ Guía exportada a PDF (Typst):[/green] {pdf_path}")
+                    except Exception as e_typst:
+                        # Fallback a HTML si la plantilla era HTML
+                        try:
+                            html_salida, base_p = renderizar_guia_html(
+                                guia_meta=guia_meta,
+                                ejercicios_con_dir=validos,
+                                template_nombre_o_ruta=template,
+                                incluir_soluciones=solucion,
+                                incluir_pistas=pistas,
+                                extra_css=extra_css_str,
+                                dir_banco=banco,
+                                via_markdown_pipeline=pipeline_md,
+                            )
+                            pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
+                            console.print(f"[green]✓ Guía exportada a PDF:[/green] {pdf_path}")
+                        except Exception as e:
+                            console.print(f"[red]Error exportando PDF: {e_typst or e}[/red]")
+                            raise typer.Exit(code=1)
+            return
 
-    # Caso 2: Ejercicio o comodín de ejercicios
-    candidatos = buscar_ejercicios(banco, patron=objetivo, recursivo=True)
+    # Caso 2: Ejercicio(s) en el banco (wildcards, filtros, --all)
+    candidatos = buscar_ejercicios(
+        banco,
+        patron=patron,
+        tema=tema,
+        bloom=bloom,
+        tag=tag,
+        verificado=verificado,
+        recursivo=True,
+    )
+    if not candidatos and objetivo:
+        ruta_dir = Path(objetivo)
+        if (ruta_dir / "ejercicio.yaml").is_file():
+            ej_cand = cargar_ejercicio(ruta_dir)
+            pasa = True
+            if tema and ej_cand.tema != tema:
+                pasa = False
+            if bloom and int(ej_cand.bloom) != int(bloom):
+                pasa = False
+            if tag and tag not in ej_cand.tags:
+                pasa = False
+            if verificado is not None and ej_cand.verificado != verificado:
+                pasa = False
+            if pasa:
+                candidatos = [(ruta_dir, ej_cand)]
+
     if not candidatos:
-        if (ruta_obj / "ejercicio.yaml").is_file():
-            candidatos = [(ruta_obj, cargar_ejercicio(ruta_obj))]
-        else:
-            console.print(f"[red]No se encontró ningún ejercicio que coincida con '{objetivo}'.[/red]")
-            raise typer.Exit(code=1)
+        criterios = []
+        if patron and patron != "*":
+            criterios.append(f"patrón='{patron}'")
+        if tema:
+            criterios.append(f"tema='{tema}'")
+        if bloom:
+            criterios.append(f"bloom={bloom}")
+        if tag:
+            criterios.append(f"tag='{tag}'")
+        if verificado is not None:
+            criterios.append(f"verificado={verificado}")
+        crit_str = f" ({', '.join(criterios)})" if criterios else ""
+        console.print(f"[red]No se encontró ningún ejercicio que coincida con los criterios especificados{crit_str}.[/red]")
+        raise typer.Exit(code=1)
 
-    if len(candidatos) == 1:
+    es_multiple = len(candidatos) > 1 or todos or bool(patron and ("*" in patron or "?" in patron))
+
+    if len(candidatos) == 1 and not es_multiple:
         dir_ej, ej = candidatos[0]
 
         for fmt in tipos:
