@@ -1,9 +1,11 @@
-"""Exportación multiformato (Markdown, HTML, PDF) y gestión de plantillas de deckard."""
+"""Exportación multiformato (Markdown, HTML, PDF, Typst) y gestión de plantillas de deckard."""
 
 from __future__ import annotations
 
 from enum import Enum
 import os
+import subprocess
+import tempfile
 from pathlib import Path
 import shutil
 from typing import Any, Dict, List, Optional, Tuple
@@ -21,6 +23,8 @@ class FormatoExport(str, Enum):
     MD = "md"
     MARKDOWN = "markdown"
     HTML = "html"
+    TYP = "typ"
+    TYPST = "typst"
 
 
 def inicializar_plantillas(destino: Path, sobrescribir: bool = False) -> List[Path]:
@@ -59,7 +63,7 @@ def buscar_plantilla(
             return ruta_directa.read_text(encoding="utf-8"), ruta_directa.parent
 
     nombre_archivo = nombre_o_ruta or f"{tipo}{extension}"
-    if not any(nombre_archivo.endswith(ext) for ext in (".html", ".jinja2", ".md", ".markdown", ".css")):
+    if not any(nombre_archivo.endswith(ext) for ext in (".html", ".jinja2", ".md", ".markdown", ".css", ".typ", ".typ.j2")):
         nombre_archivo = f"{nombre_archivo}{extension}"
 
     # 1. Local en el directorio de trabajo o banco
@@ -98,47 +102,53 @@ def buscar_plantilla(
     raise FileNotFoundError(f"No se pudo encontrar la plantilla '{nombre_o_ruta or tipo + extension}'")
 
 
-def markdown_a_html(md_texto: str) -> str:
-    """Convierte texto Markdown a HTML enriquecido."""
-    if not md_texto:
-        return ""
+def cargar_css_estilos(
+    nombre_o_ruta: Optional[str] = None,
+    dir_banco: Optional[Path] = None,
+) -> Tuple[str, Optional[Path]]:
+    """Carga la hoja de estilo CSS por defecto o personalizada."""
+    return buscar_plantilla(nombre_o_ruta, tipo="estilos", extension=".css", dir_banco=dir_banco)
+
+
+def markdown_a_html(texto_md: str) -> str:
+    """Convierte texto en Markdown a HTML seguro con extensiones comunes."""
     return markdown.markdown(
-        md_texto,
-        extensions=["fenced_code", "tables", "codehilite", "nl2br", "sane_lists"],
+        texto_md,
+        extensions=[
+            "extra",
+            "codehilite",
+            "fenced_code",
+            "tables",
+            "toc",
+            "sane_lists",
+        ],
     )
 
 
-def cargar_tests_ejercicio(dir_ejercicio: Optional[Path]) -> List[Dict[str, str]]:
-    """Carga los pares .in y .out en la subcarpeta tests/ si existen."""
-    if not dir_ejercicio or not dir_ejercicio.is_dir():
-        return []
-    tests_dir = dir_ejercicio / "tests"
-    if not tests_dir.is_dir():
+def cargar_tests_ejercicio(dir_ejercicio: Optional[Path]) -> List[Dict[str, Any]]:
+    """Carga los casos de test .in / .out de un ejercicio si existen."""
+    if not dir_ejercicio or not Path(dir_ejercicio).is_dir():
         return []
 
-    casos = []
-    for in_file in sorted(tests_dir.glob("*.in")):
-        out_file = in_file.with_suffix(".out")
-        out_content = out_file.read_text(encoding="utf-8") if out_file.is_file() else "(sin salida esperada)"
+    dir_tests = Path(dir_ejercicio) / "tests"
+    if not dir_tests.is_dir():
+        return []
+
+    casos: List[Dict[str, Any]] = []
+    archivos_in = sorted(dir_tests.glob("*.in"))
+    for file_in in archivos_in:
+        nombre_base = file_in.stem
+        file_out = dir_tests / f"{nombre_base}.out"
+        entrada = file_in.read_text(encoding="utf-8", errors="replace")
+        salida = file_out.read_text(encoding="utf-8", errors="replace") if file_out.is_file() else ""
         casos.append({
-            "nombre": in_file.stem,
-            "entrada": in_file.read_text(encoding="utf-8"),
-            "salida": out_content,
+            "nombre": nombre_base,
+            "in": entrada,
+            "out": salida,
+            "entrada": entrada,
+            "salida": salida,
         })
     return casos
-
-
-def cargar_css_estilos(custom_css_path: Optional[Path] = None, dir_banco: Optional[Path] = None) -> Tuple[str, Optional[Path]]:
-    """Carga la hoja de estilos CSS (custom o estilos.css)."""
-    if custom_css_path and Path(custom_css_path).is_file():
-        p = Path(custom_css_path)
-        return p.read_text(encoding="utf-8"), p.parent
-
-    try:
-        css_content, base_p = buscar_plantilla("estilos.css", tipo="estilos", extension=".css", dir_banco=dir_banco)
-        return css_content, base_p
-    except Exception:
-        return "", None
 
 
 def renderizar_ejercicio_md(
@@ -206,6 +216,66 @@ def renderizar_guia_md(
     return md_salida, base_path
 
 
+def renderizar_ejercicio_typst(
+    ejercicio: Ejercicio,
+    dir_ejercicio: Optional[Path] = None,
+    template_nombre_o_ruta: Optional[str] = None,
+    incluir_solucion: bool = False,
+    incluir_pistas: bool = False,
+    dir_banco: Optional[Path] = None,
+) -> Tuple[str, Optional[Path]]:
+    """Renderiza un ejercicio a formato Typst (.typ)."""
+    template_str, base_path = buscar_plantilla(
+        template_nombre_o_ruta, tipo="ejercicio", extension=".typ.j2", dir_banco=dir_banco
+    )
+    env = jinja2.Environment(autoescape=False)
+    template = env.from_string(template_str)
+
+    typst_salida = template.render(
+        ejercicio=ejercicio,
+        dir_ejercicio=dir_ejercicio,
+        incluir_soluciones=incluir_solucion,
+        incluir_pistas=incluir_pistas,
+    )
+    return typst_salida, base_path
+
+
+def renderizar_guia_typst(
+    guia_meta: dict,
+    ejercicios_con_dir: List[Tuple[Optional[Path], Ejercicio]],
+    template_nombre_o_ruta: Optional[str] = None,
+    incluir_soluciones: bool = False,
+    incluir_pistas: bool = False,
+    dir_banco: Optional[Path] = None,
+) -> Tuple[str, Optional[Path]]:
+    """Renderiza una guía completa a formato Typst (.typ)."""
+    template_str, base_path = buscar_plantilla(
+        template_nombre_o_ruta, tipo="guia", extension=".typ.j2", dir_banco=dir_banco
+    )
+    env = jinja2.Environment(autoescape=False)
+    template = env.from_string(template_str)
+
+    items = []
+    total_min = 0
+    for dir_ej, ej in ejercicios_con_dir:
+        items.append({
+            "ejercicio": ej,
+            "dir": dir_ej,
+            "enunciado_typst": ej.enunciado_md,
+        })
+        total_min += ej.minutos_estimados
+
+    typst_salida = template.render(
+        guia=guia_meta,
+        ejercicios=[e for _, e in ejercicios_con_dir],
+        items=items,
+        total_minutos=total_min,
+        incluir_soluciones=incluir_soluciones,
+        incluir_pistas=incluir_pistas,
+    )
+    return typst_salida, base_path
+
+
 def renderizar_ejercicio_html(
     ejercicio: Ejercicio,
     dir_ejercicio: Optional[Path] = None,
@@ -218,7 +288,7 @@ def renderizar_ejercicio_html(
     dir_banco: Optional[Path] = None,
     via_markdown_pipeline: bool = False,
 ) -> Tuple[str, Optional[Path]]:
-    """Renderiza un ejercicio a HTML (directo con HTML o pasando primero por Markdown)."""
+    """Renderiza un ejercicio a HTML."""
     if via_markdown_pipeline or (template_nombre_o_ruta and template_nombre_o_ruta.endswith((".md", ".markdown"))):
         md_text, md_base = renderizar_ejercicio_md(
             ejercicio=ejercicio,
@@ -253,7 +323,6 @@ def renderizar_ejercicio_html(
 </html>"""
         return html_salida, md_base or css_base
 
-    # Renderizado directo mediante plantilla HTML
     template_str, base_path = buscar_plantilla(
         template_nombre_o_ruta, tipo="ejercicio", extension=".html", dir_banco=dir_banco
     )
@@ -345,24 +414,62 @@ def renderizar_guia_html(
     return html_salida, base_path
 
 
+def compilar_typst_a_pdf(
+    typst_content: str,
+    salida_pdf: Path,
+    root_dir: Optional[Path] = None,
+) -> Path:
+    """Compila contenido Typst a PDF usando el paquete python 'typst' o el binario CLI."""
+    salida_pdf = Path(salida_pdf)
+    salida_pdf.parent.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.NamedTemporaryFile(suffix=".typ", mode="w", encoding="utf-8", delete=False) as tmp:
+        tmp.write(typst_content)
+        tmp_path = Path(tmp.name)
+
+    try:
+        try:
+            import typst
+            typst.compile(str(tmp_path), output=str(salida_pdf), root=str(root_dir) if root_dir else None)
+            return salida_pdf
+        except Exception as e_py:
+            res = subprocess.run(
+                ["typst", "compile", str(tmp_path), str(salida_pdf)],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if res.returncode != 0:
+                raise RuntimeError(f"Error compilando Typst a PDF: {res.stderr or e_py}")
+            return salida_pdf
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+
 def compilar_pdf(
-    html_content: str,
+    html_or_typst_content: str,
     salida_pdf: Path,
     base_url: Optional[str] = None,
     asset_dirs: Optional[List[Path]] = None,
 ) -> Path:
-    """Compila HTML a PDF usando WeasyPrint configurando el base_url para imágenes de plantillas y ejercicios."""
+    """Compila contenido (Typst o HTML) a PDF con Typst como motor prioritario."""
     salida_pdf = Path(salida_pdf)
     salida_pdf.parent.mkdir(parents=True, exist_ok=True)
 
-    # Determinar el base_url para resolución de imágenes
-    resolved_base_url = str(base_url) if base_url else "."
+    # Si es contenido Typst (#set o #align o //)
+    if "#set" in html_or_typst_content or "//" in html_or_typst_content.splitlines()[0]:
+        return compilar_typst_a_pdf(html_or_typst_content, salida_pdf, root_dir=Path(base_url) if base_url else None)
 
+    # Si es HTML, intentar WeasyPrint si está disponible, o convertir vía typst
+    resolved_base_url = str(base_url) if base_url else "."
     try:
         import weasyprint
-        weasyprint.HTML(string=html_content, base_url=resolved_base_url).write_pdf(
+        weasyprint.HTML(string=html_or_typst_content, base_url=resolved_base_url).write_pdf(
             target=str(salida_pdf)
         )
         return salida_pdf
-    except Exception as e:
-        raise RuntimeError(f"Error compilando PDF con WeasyPrint: {e}")
+    except Exception:
+        # Fallback generando documento typst básico
+        typ_fallback = f"""#set page(paper: "a4", margin: 2cm)\n#set text(font: ("Liberation Sans", "Arial"), size: 10.5pt)\n= Documento\n{html_or_typst_content}\n"""
+        return compilar_typst_a_pdf(typ_fallback, salida_pdf, root_dir=Path(base_url) if base_url else None)

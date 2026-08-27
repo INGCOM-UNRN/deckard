@@ -69,7 +69,8 @@ def auditar_ejercicio(dir_ej: Path, min_chars: int = 100) -> ReporteSaludEjercic
     alertas: List[str] = []
 
     # 1. Análisis de redacción
-    placeholder = "(completar enunciado)" in texto.lower() or "todo" in texto.lower() or chars == 0
+    import re
+    placeholder = "(completar enunciado)" in texto.lower() or bool(re.search(r"\b(TODO|FIXME|XXX)\b", texto)) or chars == 0
     if chars < 50 or placeholder or words < 10:
         redaccion_pobre = True
         diag_redaccion = "pobre"

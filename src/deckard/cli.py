@@ -36,11 +36,14 @@ from deckard.core.export import (
     buscar_plantilla,
     cargar_tests_ejercicio,
     compilar_pdf,
+    compilar_typst_a_pdf,
     inicializar_plantillas,
     renderizar_ejercicio_html,
     renderizar_ejercicio_md,
+    renderizar_ejercicio_typst,
     renderizar_guia_html,
     renderizar_guia_md,
+    renderizar_guia_typst,
 )
 from deckard.core.guides import (
     InfoGuia,
@@ -1155,9 +1158,9 @@ def _parse_output_types(tipo_str: str) -> List[str]:
     raw_list = [t.strip().lower() for t in tipo_str.split(",") if t.strip()]
     res = []
     for r in raw_list:
-        val = "md" if r == "markdown" else r
-        if val not in ("pdf", "md", "html"):
-            console.print(f"[red]Formato de salida no válido: '{r}'. Opciones permitidas: pdf, md, html.[/red]")
+        val = "md" if r == "markdown" else ("typ" if r == "typst" else r)
+        if val not in ("pdf", "md", "html", "typ", "typst"):
+            console.print(f"[red]Formato de salida no válido: '{r}'. Opciones permitidas: pdf, md, html, typ, typst.[/red]")
             raise typer.Exit(code=1)
         if val not in res:
             res.append(val)
@@ -1167,17 +1170,17 @@ def _parse_output_types(tipo_str: str) -> List[str]:
 @export_app.command("run", hidden=True)
 def exportar_contenido(
     objetivo: str = typer.Argument(..., help="Id de ejercicio, comodín ('*'), o ruta a guía (.yaml)."),
-    type: str = typer.Option("pdf", "--type", "-t", help="Formatos de salida (ej: --type=pdf,md o --type=html). Separar por comas."),
+    type: str = typer.Option("pdf", "--type", "-t", help="Formatos de salida (ej: --type=pdf,md o --type=typst). Separar por comas."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
     salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Archivo de salida o directorio destino."),
-    template: Optional[str] = typer.Option(None, "--template", "-T", help="Nombre o ruta de plantilla personalizada."),
+    template: Optional[str] = typer.Option(None, "--template", "-T", help="Nombre o ruta de plantilla personalizada (.typ.j2, .html, .md)."),
     pipeline_md: bool = typer.Option(False, "--pipeline-md", help="Generar Markdown intermedio antes de compilar PDF."),
     solucion: bool = typer.Option(False, "--solucion", "-s", help="Incluir solución modelo."),
     pistas: bool = typer.Option(False, "--pistas", "-p", help="Incluir pistas progresivas."),
     tests: bool = typer.Option(False, "--tests", help="Incluir casos de prueba."),
     css: Optional[Path] = typer.Option(None, "--css", exists=True, help="Archivo CSS adicional para PDF/HTML."),
 ) -> None:
-    """Exporta ejercicios o guías a Markdown, HTML o PDF con plantillas personalizables."""
+    """Exporta ejercicios o guías a Typst, PDF, Markdown o HTML con plantillas personalizables."""
     tipos = _parse_output_types(type)
     extra_css_str = css.read_text(encoding="utf-8") if css else None
     ruta_obj = Path(objetivo)
@@ -1214,6 +1217,17 @@ def exportar_contenido(
                 )
                 dest.write_text(md_salida, encoding="utf-8")
                 console.print(f"[green]✓ Guía exportada a Markdown:[/green] {dest}")
+            elif fmt in ("typ", "typst"):
+                typ_salida, _ = renderizar_guia_typst(
+                    guia_meta=guia_meta,
+                    ejercicios_con_dir=validos,
+                    template_nombre_o_ruta=template,
+                    incluir_soluciones=solucion,
+                    incluir_pistas=pistas,
+                    dir_banco=banco,
+                )
+                dest.write_text(typ_salida, encoding="utf-8")
+                console.print(f"[green]✓ Guía exportada a Typst:[/green] {dest}")
             elif fmt == "html":
                 html_salida, _ = renderizar_guia_html(
                     guia_meta=guia_meta,
@@ -1228,22 +1242,35 @@ def exportar_contenido(
                 dest.write_text(html_salida, encoding="utf-8")
                 console.print(f"[green]✓ Guía exportada a HTML:[/green] {dest}")
             elif fmt == "pdf":
-                html_salida, base_p = renderizar_guia_html(
-                    guia_meta=guia_meta,
-                    ejercicios_con_dir=validos,
-                    template_nombre_o_ruta=template,
-                    incluir_soluciones=solucion,
-                    incluir_pistas=pistas,
-                    extra_css=extra_css_str,
-                    dir_banco=banco,
-                    via_markdown_pipeline=pipeline_md,
-                )
                 try:
-                    pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
-                    console.print(f"[green]✓ Guía exportada a PDF:[/green] {pdf_path}")
-                except Exception as e:
-                    console.print(f"[red]{e}[/red]")
-                    raise typer.Exit(code=1)
+                    typst_salida, base_p = renderizar_guia_typst(
+                        guia_meta=guia_meta,
+                        ejercicios_con_dir=validos,
+                        template_nombre_o_ruta=template,
+                        incluir_soluciones=solucion,
+                        incluir_pistas=pistas,
+                        dir_banco=banco,
+                    )
+                    pdf_path = compilar_typst_a_pdf(typst_salida, dest, root_dir=base_p)
+                    console.print(f"[green]✓ Guía exportada a PDF (Typst):[/green] {pdf_path}")
+                except Exception as e_typst:
+                    # Fallback a HTML si la plantilla era HTML
+                    try:
+                        html_salida, base_p = renderizar_guia_html(
+                            guia_meta=guia_meta,
+                            ejercicios_con_dir=validos,
+                            template_nombre_o_ruta=template,
+                            incluir_soluciones=solucion,
+                            incluir_pistas=pistas,
+                            extra_css=extra_css_str,
+                            dir_banco=banco,
+                            via_markdown_pipeline=pipeline_md,
+                        )
+                        pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
+                        console.print(f"[green]✓ Guía exportada a PDF:[/green] {pdf_path}")
+                    except Exception as e:
+                        console.print(f"[red]Error exportando PDF: {e_typst or e}[/red]")
+                        raise typer.Exit(code=1)
         return
 
     # Caso 2: Ejercicio o comodín de ejercicios
@@ -1284,6 +1311,17 @@ def exportar_contenido(
                 )
                 dest.write_text(md_salida, encoding="utf-8")
                 console.print(f"[green]✓ Ejercicio exportado a Markdown:[/green] {dest}")
+            elif fmt in ("typ", "typst"):
+                typ_salida, _ = renderizar_ejercicio_typst(
+                    ejercicio=ej,
+                    dir_ejercicio=dir_ej,
+                    template_nombre_o_ruta=template,
+                    incluir_solucion=solucion,
+                    incluir_pistas=pistas,
+                    dir_banco=banco,
+                )
+                dest.write_text(typ_salida, encoding="utf-8")
+                console.print(f"[green]✓ Ejercicio exportado a Typst:[/green] {dest}")
             elif fmt == "html":
                 html_salida, _ = renderizar_ejercicio_html(
                     ejercicio=ej,
@@ -1299,23 +1337,35 @@ def exportar_contenido(
                 dest.write_text(html_salida, encoding="utf-8")
                 console.print(f"[green]✓ Ejercicio exportado a HTML:[/green] {dest}")
             elif fmt == "pdf":
-                html_salida, base_p = renderizar_ejercicio_html(
-                    ejercicio=ej,
-                    dir_ejercicio=dir_ej,
-                    template_nombre_o_ruta=template,
-                    incluir_solucion=solucion,
-                    incluir_pistas=pistas,
-                    incluir_tests=tests,
-                    extra_css=extra_css_str,
-                    dir_banco=banco,
-                    via_markdown_pipeline=pipeline_md,
-                )
                 try:
-                    pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
-                    console.print(f"[green]✓ Ejercicio exportado a PDF:[/green] {pdf_path}")
-                except Exception as e:
-                    console.print(f"[red]{e}[/red]")
-                    raise typer.Exit(code=1)
+                    typst_salida, base_p = renderizar_ejercicio_typst(
+                        ejercicio=ej,
+                        dir_ejercicio=dir_ej,
+                        template_nombre_o_ruta=template,
+                        incluir_solucion=solucion,
+                        incluir_pistas=pistas,
+                        dir_banco=banco,
+                    )
+                    pdf_path = compilar_typst_a_pdf(typst_salida, dest, root_dir=base_p)
+                    console.print(f"[green]✓ Ejercicio exportado a PDF (Typst):[/green] {pdf_path}")
+                except Exception as e_typst:
+                    try:
+                        html_salida, base_p = renderizar_ejercicio_html(
+                            ejercicio=ej,
+                            dir_ejercicio=dir_ej,
+                            template_nombre_o_ruta=template,
+                            incluir_solucion=solucion,
+                            incluir_pistas=pistas,
+                            incluir_tests=tests,
+                            extra_css=extra_css_str,
+                            dir_banco=banco,
+                            via_markdown_pipeline=pipeline_md,
+                        )
+                        pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
+                        console.print(f"[green]✓ Ejercicio exportado a PDF:[/green] {pdf_path}")
+                    except Exception as e:
+                        console.print(f"[red]Error exportando PDF: {e_typst or e}[/red]")
+                        raise typer.Exit(code=1)
         return
     else:
         out_dir = salida or Path("dist")
@@ -1343,6 +1393,16 @@ def exportar_contenido(
                         dir_banco=banco,
                     )
                     file_dest.write_text(md_salida, encoding="utf-8")
+                elif fmt in ("typ", "typst"):
+                    typ_salida, _ = renderizar_ejercicio_typst(
+                        ejercicio=ej,
+                        dir_ejercicio=dir_ej,
+                        template_nombre_o_ruta=template,
+                        incluir_solucion=solucion,
+                        incluir_pistas=pistas,
+                        dir_banco=banco,
+                    )
+                    file_dest.write_text(typ_salida, encoding="utf-8")
                 elif fmt == "html":
                     html_salida, _ = renderizar_ejercicio_html(
                         ejercicio=ej,
@@ -1357,18 +1417,29 @@ def exportar_contenido(
                     )
                     file_dest.write_text(html_salida, encoding="utf-8")
                 elif fmt == "pdf":
-                    html_salida, base_p = renderizar_ejercicio_html(
-                        ejercicio=ej,
-                        dir_ejercicio=dir_ej,
-                        template_nombre_o_ruta=template,
-                        incluir_solucion=solucion,
-                        incluir_pistas=pistas,
-                        incluir_tests=tests,
-                        extra_css=extra_css_str,
-                        dir_banco=banco,
-                        via_markdown_pipeline=pipeline_md,
-                    )
-                    compilar_pdf(html_salida, file_dest, base_url=str(base_p) if base_p else ".")
+                    try:
+                        typst_salida, base_p = renderizar_ejercicio_typst(
+                            ejercicio=ej,
+                            dir_ejercicio=dir_ej,
+                            template_nombre_o_ruta=template,
+                            incluir_solucion=solucion,
+                            incluir_pistas=pistas,
+                            dir_banco=banco,
+                        )
+                        compilar_typst_a_pdf(typst_salida, file_dest, root_dir=base_p)
+                    except Exception:
+                        html_salida, base_p = renderizar_ejercicio_html(
+                            ejercicio=ej,
+                            dir_ejercicio=dir_ej,
+                            template_nombre_o_ruta=template,
+                            incluir_solucion=solucion,
+                            incluir_pistas=pistas,
+                            incluir_tests=tests,
+                            extra_css=extra_css_str,
+                            dir_banco=banco,
+                            via_markdown_pipeline=pipeline_md,
+                        )
+                        compilar_pdf(html_salida, file_dest, base_url=str(base_p) if base_p else ".")
 
                 tabla.add_row(ej.id, fmt.upper(), str(file_dest))
 
