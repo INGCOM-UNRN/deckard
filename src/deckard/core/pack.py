@@ -333,26 +333,46 @@ def empaquetar_guia(
     sign_key: Optional[str] = None,
     generar_starter: bool = False,
 ) -> List[ResultadoEmpaquetado]:
-    """Empaqueta todos los ejercicios referenciados en una guía YAML."""
-    if not guia_spec_file.is_file():
+    """Empaqueta todos los ejercicios referenciados en una guía YAML junto a su definición."""
+    from deckard.core.bank import buscar_ejercicios
+    from deckard.core.guides import resolver_ruta_guia
+
+    ruta_yaml = resolver_ruta_guia(guia_spec_file)
+    if not ruta_yaml.is_file():
         raise PackError(f"Archivo de guía inexistente: {guia_spec_file}")
 
-    with open(guia_spec_file, "r", encoding="utf-8") as f:
+    with open(ruta_yaml, "r", encoding="utf-8") as f:
         datos = yaml.safe_load(f) or {}
 
     ejercicios_spec = datos.get("ejercicios", [])
     if not ejercicios_spec:
-        raise PackError(f"La guía {guia_spec_file} no contiene ejercicios.")
+        raise PackError(f"La guía {ruta_yaml} no contiene ejercicios.")
 
-    salida_base = out_dir or (guia_spec_file.parent / guia_spec_file.stem)
+    # Si out_dir es explícito se usa; sino:
+    # Si la guía ya está en su propia carpeta (guias/<nombre>/guia.yaml), la salida es esa misma carpeta.
+    # Si es un archivo plano (guias/<nombre>.yaml), se crea guias/<nombre>/ y se guarda allí junto a guia.yaml.
+    if out_dir:
+        salida_base = Path(out_dir)
+    else:
+        if ruta_yaml.name in ("guia.yaml", "guia.yml"):
+            salida_base = ruta_yaml.parent
+        else:
+            salida_base = ruta_yaml.parent / ruta_yaml.stem
+
     salida_base.mkdir(parents=True, exist_ok=True)
+
+    # Asegurar que el YAML de la guía resida dentro del directorio junto a los paquetes .ripkg
+    dest_yaml = salida_base / "guia.yaml"
+    if ruta_yaml.resolve() != dest_yaml.resolve():
+        shutil.copy2(ruta_yaml, dest_yaml)
 
     resultados: List[ResultadoEmpaquetado] = []
     for item in ejercicios_spec:
         eid = item.get("id") if isinstance(item, dict) else str(item)
-        dir_ej = banco / eid
-        if not dir_ej.is_dir():
+        matches = buscar_ejercicios(banco, patron=eid, recursivo=True)
+        if not matches:
             raise PackError(f"Ejercicio '{eid}' de la guía no encontrado en el banco {banco}.")
+        dir_ej, _ = matches[0]
 
         dest_ripkg = salida_base / f"{eid}.ripkg"
         starter_dir = (salida_base / "starters" / eid) if generar_starter else None
@@ -367,3 +387,4 @@ def empaquetar_guia(
         resultados.append(res)
 
     return resultados
+

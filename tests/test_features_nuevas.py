@@ -374,3 +374,47 @@ def test_guide_verify(guias_dir, banco_con_tests):
         ])
         assert res.exit_code == 0
         assert "Verificación de guía finalizada: 2/2 exitosos" in res.stdout
+
+
+def test_guide_directory_structure_and_pack(tmp_path, banco_con_tests):
+    """Verifica la estructura simplificada de guías donde guia.yaml reside dentro de su carpeta junto a los .ripkg."""
+    import yaml
+    from deckard.core.pack import empaquetar_guia
+    from deckard.core.guides import listar_guias, inspeccionar_guia
+
+    guias_root = tmp_path / "guias"
+    guia_dir = guias_root / "guia_punteros"
+    guia_dir.mkdir(parents=True)
+    yaml_file = guia_dir / "guia.yaml"
+    yaml_file.write_text(yaml.safe_dump({
+        "nombre": "Guía de Punteros",
+        "minutos_totales": 50,
+        "ejercicios": [
+            {"id": "invertir-vector", "minutos": 25, "bloom": 3, "tema": "vectores"},
+            {"id": "contar-pares", "minutos": 25, "bloom": 2, "tema": "vectores"},
+        ]
+    }), encoding="utf-8")
+
+    # 1. listar_guias descubre la carpeta
+    lista = listar_guias(guias_root, dir_banco=banco_con_tests)
+    assert len(lista) == 1
+    assert lista[0].nombre == "Guía de Punteros"
+    assert lista[0].cantidad_ejercicios == 2
+
+    # 2. Empaquetar guía sin out_dir especificado genera los .ripkg dentro del directorio con el yaml
+    res = empaquetar_guia(guia_dir, banco=banco_con_tests)
+    assert len(res) == 2
+    assert (guia_dir / "guia.yaml").is_file()
+    assert (guia_dir / "invertir-vector.ripkg").is_file()
+    assert (guia_dir / "contar-pares.ripkg").is_file()
+
+    # 3. CLI guide show con nombre de directorio
+    res_show = runner.invoke(app, [
+        "guide", "show", "guia_punteros",
+        "--guias", str(guias_root),
+        "--banco", str(banco_con_tests),
+    ])
+    assert res_show.exit_code == 0
+    assert "Guía de Punteros" in res_show.stdout
+    assert "invertir-vector" in res_show.stdout
+

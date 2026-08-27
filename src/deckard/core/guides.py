@@ -40,8 +40,10 @@ def guardar_yaml_guia(ruta: Path, datos: dict) -> None:
 
 def inspeccionar_guia(ruta_guia: Path, dir_banco: Optional[Path] = None) -> InfoGuia:
     """Inspecciona un archivo de guía (sea GuiaSpec o Guia compuesta) y extrae métricas."""
-    datos = cargar_yaml_guia(ruta_guia)
-    nombre = datos.get("nombre", ruta_guia.stem.replace("_", " ").title())
+    ruta = resolver_ruta_guia(ruta_guia)
+    datos = cargar_yaml_guia(ruta)
+    fallback_stem = ruta.parent.name if ruta.stem in ("guia", "guia_spec") else ruta.stem
+    nombre = datos.get("nombre", fallback_stem.replace("_", " ").title())
 
     # Detectar si es una GuiaSpec
     es_spec = "duracion_min" in datos and "ejercicios" not in datos
@@ -90,17 +92,77 @@ def inspeccionar_guia(ruta_guia: Path, dir_banco: Optional[Path] = None) -> Info
     )
 
 
+def resolver_ruta_guia(ruta_o_nombre: str | Path, dir_guias: Optional[Path] = None) -> Path:
+    """Resuelve la ruta al archivo YAML de la guía, soportando carpetas unificadas y archivos planos."""
+    p = Path(ruta_o_nombre)
+    if p.is_file():
+        return p
+
+    base = dir_guias or Path("guias")
+
+    # 1. Si es directorio: buscar guia.yaml / guia.yml / <nombre>.yaml dentro
+    if p.is_dir():
+        for cand in (p / "guia.yaml", p / "guia.yml", p / f"{p.name}.yaml", p / f"{p.name}.yml"):
+            if cand.is_file():
+                return cand
+        yaml_files = sorted(p.glob("*.yaml")) + sorted(p.glob("*.yml"))
+        if yaml_files:
+            return yaml_files[0]
+
+    # 2. Si existe en dir_guias como directorio
+    cand_dir = base / p.name
+    if cand_dir.is_dir():
+        for cand in (cand_dir / "guia.yaml", cand_dir / "guia.yml", cand_dir / f"{cand_dir.name}.yaml", cand_dir / f"{cand_dir.name}.yml"):
+            if cand.is_file():
+                return cand
+        yaml_files = sorted(cand_dir.glob("*.yaml")) + sorted(cand_dir.glob("*.yml"))
+        if yaml_files:
+            return yaml_files[0]
+
+    # 3. Si existe como archivo en dir_guias
+    if (base / p.name).is_file():
+        return base / p.name
+    if not p.suffix and (base / f"{p.name}.yaml").is_file():
+        return base / f"{p.name}.yaml"
+    if not p.suffix and (base / f"{p.name}.yml").is_file():
+        return base / f"{p.name}.yml"
+
+    # Si no tiene extensión y existe en el path relativo actual
+    if not p.suffix and Path(f"{p}.yaml").is_file():
+        return Path(f"{p}.yaml")
+
+    return p
+
+
 def listar_guias(dir_guias: Path, dir_banco: Optional[Path] = None) -> List[InfoGuia]:
-    """Lista todas las guías (.yaml / .yml) en el directorio especificado."""
+    """Lista todas las guías (.yaml / .yml o carpetas con guia.yaml) en el directorio especificado."""
     if not dir_guias.is_dir():
         return []
 
     guias: List[InfoGuia] = []
+    encontrados: set[Path] = set()
+
+    # 1. Buscar en subdirectorios guias/<nombre>/guia.yaml
+    for sub in sorted(dir_guias.iterdir()):
+        if sub.is_dir():
+            for cand in (sub / "guia.yaml", sub / "guia.yml", sub / f"{sub.name}.yaml", sub / f"{sub.name}.yml"):
+                if cand.is_file() and cand.resolve() not in encontrados:
+                    try:
+                        guias.append(inspeccionar_guia(cand, dir_banco=dir_banco))
+                        encontrados.add(cand.resolve())
+                        break
+                    except Exception:
+                        continue
+
+    # 2. Buscar archivos directos guias/*.yaml
     for f in sorted(dir_guias.glob("*.yaml")) + sorted(dir_guias.glob("*.yml")):
-        try:
-            guias.append(inspeccionar_guia(f, dir_banco=dir_banco))
-        except Exception:
-            continue
+        if f.resolve() not in encontrados:
+            try:
+                guias.append(inspeccionar_guia(f, dir_banco=dir_banco))
+                encontrados.add(f.resolve())
+            except Exception:
+                continue
+
     return guias
 
 
@@ -108,7 +170,8 @@ def cargar_guia_con_ejercicios(
     ruta_guia: Path, dir_banco: Path
 ) -> Tuple[dict, List[Tuple[Optional[Path], Optional[Ejercicio]]]]:
     """Carga los metadatos de la guía y resuelve los objetos Ejercicio correspondientes."""
-    datos = cargar_yaml_guia(ruta_guia)
+    ruta = resolver_ruta_guia(ruta_guia)
+    datos = cargar_yaml_guia(ruta)
     raw_ejs = datos.get("ejercicios", [])
 
     items: List[Tuple[Optional[Path], Optional[Ejercicio]]] = []
@@ -124,7 +187,8 @@ def cargar_guia_con_ejercicios(
 
 def agregar_ejercicio_a_guia(ruta_guia: Path, dir_banco: Path, ejercicio_id: str) -> dict:
     """Agrega un ejercicio a una guía compuesta existente."""
-    datos = cargar_yaml_guia(ruta_guia)
+    ruta = resolver_ruta_guia(ruta_guia)
+    datos = cargar_yaml_guia(ruta)
     if "ejercicios" not in datos or not isinstance(datos["ejercicios"], list):
         datos["ejercicios"] = []
 
@@ -159,13 +223,14 @@ def agregar_ejercicio_a_guia(ruta_guia: Path, dir_banco: Path, ejercicio_id: str
 
     datos["minutos_totales"] = total_min
     datos["distribucion_bloom"] = distribucion
-    guardar_yaml_guia(ruta_guia, datos)
+    guardar_yaml_guia(ruta, datos)
     return datos
 
 
 def remover_ejercicio_de_guia(ruta_guia: Path, ejercicio_id: str) -> dict:
     """Remueve un ejercicio de una guía compuesta."""
-    datos = cargar_yaml_guia(ruta_guia)
+    ruta = resolver_ruta_guia(ruta_guia)
+    datos = cargar_yaml_guia(ruta)
     if "ejercicios" not in datos or not isinstance(datos["ejercicios"], list):
         return datos
 
@@ -188,7 +253,7 @@ def remover_ejercicio_de_guia(ruta_guia: Path, ejercicio_id: str) -> dict:
 
     datos["minutos_totales"] = total_min
     datos["distribucion_bloom"] = distribucion
-    guardar_yaml_guia(ruta_guia, datos)
+    guardar_yaml_guia(ruta, datos)
     return datos
 
 

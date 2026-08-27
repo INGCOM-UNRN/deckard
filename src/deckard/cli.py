@@ -54,6 +54,7 @@ from deckard.core.guides import (
     listar_guias,
     listar_specs,
     remover_ejercicio_de_guia,
+    resolver_ruta_guia,
     validar_spec,
 )
 from deckard.core.models import Ejercicio, GuiaSpec, NivelBloom
@@ -618,8 +619,10 @@ def compose(
     console.print(tabla)
     console.print(f"Distribución Bloom: {seleccion.distribucion_bloom}")
 
-    salida = Path("guias") / f"{spec.nombre.replace(' ', '_').lower()}.yaml"
-    salida.parent.mkdir(parents=True, exist_ok=True)
+    slug = spec.nombre.replace(' ', '_').lower()
+    dir_guia = Path("guias") / slug
+    dir_guia.mkdir(parents=True, exist_ok=True)
+    salida = dir_guia / "guia.yaml"
     with open(salida, "w", encoding="utf-8") as f:
         yaml.safe_dump({
             "nombre": seleccion.guia,
@@ -1178,7 +1181,7 @@ def guide_list(
 
 @guide_app.command("show")
 def guide_show(
-    guia_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo YAML de la guía."),
+    guia_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo YAML o carpeta de la guía."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio del banco."),
     guias_dir: Path = typer.Option(Path("guias"), "--guias", help="Directorio de guías."),
     enunciados: bool = typer.Option(False, "--enunciados", "-e", help="Mostrar enunciados completos."),
@@ -1186,11 +1189,7 @@ def guide_show(
     pistas: bool = typer.Option(False, "--pistas", "-p", help="Mostrar pistas progresivas."),
 ) -> None:
     """Muestra el detalle estructurado de una guía y sus ejercicios."""
-    ruta = Path(guia_archivo)
-    if not ruta.is_file():
-        ruta = guias_dir / guia_archivo
-    if not ruta.is_file() and not ruta.suffix:
-        ruta = guias_dir / f"{guia_archivo}.yaml"
+    ruta = resolver_ruta_guia(guia_archivo, dir_guias=guias_dir)
     if not ruta.is_file():
         console.print(f"[red]No se encontró la guía '{guia_archivo}'.[/red]")
         raise typer.Exit(code=1)
@@ -1252,7 +1251,7 @@ def guide_show(
 
 @guide_app.command("new")
 def guide_new(
-    archivo: str = typer.Argument(..., help="Nombre del archivo YAML (ej: 'guia_punteros.yaml')."),
+    archivo: str = typer.Argument(..., help="Nombre del archivo YAML o carpeta (ej: 'guia_punteros.yaml' o 'guia_punteros')."),
     titulo: str = typer.Option(..., "--titulo", "-t", help="Título descriptivo de la guía."),
     duracion: int = typer.Option(90, "--duracion", "-d", help="Duración estimada en minutos."),
     margen: float = typer.Option(0.8, "--margen", "-m", help="Margen de carga (0.3 - 1.0)."),
@@ -1264,8 +1263,12 @@ def guide_new(
 ) -> None:
     """Crea una nueva especificación de guía (GuiaSpec) en guias/."""
     guias_dir.mkdir(parents=True, exist_ok=True)
-    nombre_f = archivo if archivo.endswith(".yaml") or archivo.endswith(".yml") else f"{archivo}.yaml"
-    dest = guias_dir / nombre_f
+    if archivo.endswith(".yaml") or archivo.endswith(".yml"):
+        dest = guias_dir / archivo
+    else:
+        # Carpeta unificada
+        dest = guias_dir / archivo / "guia.yaml"
+        dest.parent.mkdir(parents=True, exist_ok=True)
 
     lista_temas = [t.strip() for t in temas.split(",") if t.strip()] if temas else []
     datos = {
@@ -1295,17 +1298,13 @@ def guide_compose_cmd(
 
 @guide_app.command("add")
 def guide_add(
-    guia_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo de la guía."),
+    guia_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo/carpeta de la guía."),
     ejercicio_id: str = typer.Argument(..., help="ID del ejercicio a agregar."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio del banco."),
     guias_dir: Path = typer.Option(Path("guias"), "--guias", help="Directorio de guías."),
 ) -> None:
     """Agrega un ejercicio del banco a una guía compuesta."""
-    ruta = Path(guia_archivo)
-    if not ruta.is_file():
-        ruta = guias_dir / guia_archivo
-    if not ruta.is_file() and not ruta.suffix:
-        ruta = guias_dir / f"{guia_archivo}.yaml"
+    ruta = resolver_ruta_guia(guia_archivo, dir_guias=guias_dir)
     if not ruta.is_file():
         console.print(f"[red]No se encontró la guía '{guia_archivo}'.[/red]")
         raise typer.Exit(code=1)
@@ -1321,16 +1320,12 @@ def guide_add(
 
 @guide_app.command("remove")
 def guide_remove(
-    guia_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo de la guía."),
+    guia_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo/carpeta de la guía."),
     ejercicio_id: str = typer.Argument(..., help="ID del ejercicio a remover."),
     guias_dir: Path = typer.Option(Path("guias"), "--guias", help="Directorio de guías."),
 ) -> None:
     """Remueve un ejercicio de una guía compuesta."""
-    ruta = Path(guia_archivo)
-    if not ruta.is_file():
-        ruta = guias_dir / guia_archivo
-    if not ruta.is_file() and not ruta.suffix:
-        ruta = guias_dir / f"{guia_archivo}.yaml"
+    ruta = resolver_ruta_guia(guia_archivo, dir_guias=guias_dir)
     if not ruta.is_file():
         console.print(f"[red]No se encontró la guía '{guia_archivo}'.[/red]")
         raise typer.Exit(code=1)
@@ -1346,17 +1341,13 @@ def guide_remove(
 
 @guide_app.command("verify")
 def guide_verify(
-    guia_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo de la guía."),
+    guia_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo/carpeta de la guía."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio del banco."),
     guias_dir: Path = typer.Option(Path("guias"), "--guias", help="Directorio de guías."),
     ripley: Optional[str] = typer.Option(None, "--ripley", help="Ruta a ripley."),
 ) -> None:
     """Verifica con ripley todas las soluciones modelo de los ejercicios de la guía."""
-    ruta = Path(guia_archivo)
-    if not ruta.is_file():
-        ruta = guias_dir / guia_archivo
-    if not ruta.is_file() and not ruta.suffix:
-        ruta = guias_dir / f"{guia_archivo}.yaml"
+    ruta = resolver_ruta_guia(guia_archivo, dir_guias=guias_dir)
     if not ruta.is_file():
         console.print(f"[red]No se encontró la guía '{guia_archivo}'.[/red]")
         raise typer.Exit(code=1)
@@ -1393,7 +1384,7 @@ def guide_verify(
 @guide_app.command("export")
 @guide_app.command("pdf")
 def guide_export_cmd(
-    guia_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo de la guía."),
+    guia_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo/carpeta de la guía."),
     type: str = typer.Option("pdf", "--type", "-t", help="Formatos de salida separados por comas: pdf, md, html (ej: --type=pdf,md)."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio del banco."),
     salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Archivo de salida o directorio destino."),
@@ -1405,11 +1396,7 @@ def guide_export_cmd(
     guias_dir: Path = typer.Option(Path("guias"), "--guias", help="Directorio de guías."),
 ) -> None:
     """Exporta la guía completa a PDF, Markdown o HTML."""
-    ruta = Path(guia_archivo)
-    if not ruta.is_file():
-        ruta = guias_dir / guia_archivo
-    if not ruta.is_file() and not ruta.suffix:
-        ruta = guias_dir / f"{guia_archivo}.yaml"
+    ruta = resolver_ruta_guia(guia_archivo, dir_guias=guias_dir)
     if not ruta.is_file():
         console.print(f"[red]No se encontró la guía '{guia_archivo}'.[/red]")
         raise typer.Exit(code=1)
@@ -1653,7 +1640,7 @@ def test_harness(
 def pack(
     objetivo: str = typer.Argument(
         ...,
-        help="Id del ejercicio en el banco, o ruta a guia.yaml / carpeta de ejercicio.",
+        help="Id del ejercicio en el banco, o ruta a guia.yaml / carpeta de guía / carpeta de ejercicio.",
     ),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio del banco de ejercicios."),
     salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Archivo .ripkg o directorio de salida."),
@@ -1661,29 +1648,43 @@ def pack(
     starter: bool = typer.Option(False, "--starter", help="Generar también estructura starter repo para GitHub Classroom."),
 ) -> None:
     """Empaqueta ejercicios o guías como .ripkg para Ripley y starter repos."""
+    from deckard.core.bank import buscar_ejercicios
+    from deckard.core.guides import resolver_ruta_guia
     from deckard.core.pack import PackError, empaquetar_ejercicio, empaquetar_guia
 
-    ruta_obj = Path(objetivo)
     try:
-        if ruta_obj.is_file() and (ruta_obj.suffix in (".yaml", ".yml") or "guia" in ruta_obj.name):
-            resultados = empaquetar_guia(
-                guia_spec_file=ruta_obj,
-                banco=banco,
-                out_dir=salida,
-                sign_key=sign_key,
-                generar_starter=starter,
-            )
-            console.print(f"[green]✓ Guía empaquetada: {len(resultados)} paquetes generados.[/green]")
-            for r in resultados:
-                console.print(f"  • [bold]{r.output_path.name}[/bold] ({r.archivos_payload} archivos, {r.checks_habilitados} checks)")
-                if r.starter_path:
-                    console.print(f"    ↳ Starter repo: [dim]{r.starter_path}[/dim]")
-            return
+        # 1. Intentar resolver como guía (carpeta de guía o archivo YAML)
+        ruta_yaml = resolver_ruta_guia(objetivo, dir_guias=Path("guias"))
+        if ruta_yaml.is_file() and (ruta_yaml.suffix in (".yaml", ".yml") or "guia" in ruta_yaml.name):
+            try:
+                with open(ruta_yaml, "r", encoding="utf-8") as f:
+                    datos = yaml.safe_load(f) or {}
+                if "ejercicios" in datos:
+                    resultados = empaquetar_guia(
+                        guia_spec_file=ruta_yaml,
+                        banco=banco,
+                        out_dir=salida,
+                        sign_key=sign_key,
+                        generar_starter=starter,
+                    )
+                    console.print(f"[green]✓ Guía empaquetada: {len(resultados)} paquetes generados.[/green]")
+                    for r in resultados:
+                        console.print(f"  • [bold]{r.output_path.name}[/bold] ({r.archivos_payload} archivos, {r.checks_habilitados} checks)")
+                        if r.starter_path:
+                            console.print(f"    ↳ Starter repo: [dim]{r.starter_path}[/dim]")
+                    return
+            except Exception:
+                pass
 
-        dir_ej = ruta_obj if ruta_obj.is_dir() else (banco / objetivo)
-        if not dir_ej.is_dir():
-            console.print(f"[red]No se encontró el ejercicio o guía: '{objetivo}' (buscado en {dir_ej})[/red]")
-            raise typer.Exit(code=1)
+        # 2. Si no es guía, resolver como ejercicio en el banco (búsqueda recursiva)
+        matches = buscar_ejercicios(banco, patron=objetivo, recursivo=True)
+        if matches:
+            dir_ej, _ = matches[0]
+        else:
+            dir_ej = Path(objetivo)
+            if not dir_ej.is_dir():
+                console.print(f"[red]No se encontró el ejercicio o guía: '{objetivo}'[/red]")
+                raise typer.Exit(code=1)
 
         res = empaquetar_ejercicio(
             dir_ejercicio=dir_ej,
