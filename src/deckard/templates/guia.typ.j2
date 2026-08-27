@@ -1,0 +1,117 @@
+// Plantilla Typst para Guías de Trabajos Prácticos de Deckard
+#set document(title: "{{ guia.materia | default('Algoritmos y Programación en C') }} - {{ guia.titulo | default('Guía de Ejercicios') }}", author: "Cátedra")
+#set page(
+  paper: "a4",
+  margin: (top: 2.5cm, bottom: 2.5cm, left: 2.5cm, right: 2.5cm),
+  header: align(right)[
+    #text(size: 8.5pt, fill: rgb("666666"))[{{ guia.institucion | default('Universidad') }} — {{ guia.materia | default('Programación en C') }}]
+  ],
+  footer: context [
+    #line(length: 100%, stroke: 0.5pt + rgb("cccccc"))
+    #grid(
+      columns: (1fr, 1fr),
+      align(left)[#text(size: 8pt, fill: rgb("888888"))[{{ guia.titulo }}]],
+      align(right)[#text(size: 8pt, fill: rgb("888888"))[Página #counter(page).display("1 / 1", both: true)]]
+    )
+  ]
+)
+
+#set text(font: ("Liberation Sans", "DejaVu Sans", "Arial"), size: 10.5pt, lang: "es")
+#set par(justify: true, leading: 0.7em)
+
+// Encabezado Principal
+#align(center)[
+  #block(
+    fill: rgb("f0f4f8"),
+    inset: 16pt,
+    radius: 6pt,
+    stroke: 1pt + rgb("c2d4e7"),
+    width: 100%
+  )[
+    #text(size: 18pt, weight: "bold", fill: rgb("1b365d"))[{{ guia.titulo }}]\
+    #v(4pt)
+    #text(size: 12pt, weight: "medium", fill: rgb("4a5568"))[{{ guia.materia | default('Programación en C') }} — {{ guia.cuatrimestre | default('2026') }}]\
+    #v(6pt)
+    #text(size: 9.5pt, fill: rgb("718096"))[
+      *Total Ejercicios:* {{ items | length }} |
+      *Duración Estimada:* {{ total_minutos }} min
+    ]
+  ]
+]
+
+#v(10pt)
+
+{% if guia.descripcion %}
+#block(
+  fill: rgb("ffffff"),
+  inset: 10pt,
+  radius: 4pt,
+  stroke: 0.5pt + rgb("e2e8f0")
+)[
+  #text(weight: "bold", fill: rgb("2d3748"))[Descripción General:]\
+  {{ guia.descripcion }}
+]
+#v(10pt)
+{% endif %}
+
+// Listado de Ejercicios
+#text(size: 14pt, weight: "bold", fill: rgb("1b365d"))[Ejercicios Prácticos]
+
+{% for item in items %}
+#v(8pt)
+#block(
+  width: 100%,
+  stroke: 1pt + rgb("e2e8f0"),
+  radius: 6pt,
+  inset: 12pt,
+  fill: rgb("fafafa")
+)[
+  #grid(
+    columns: (1fr, auto),
+    align(left)[
+      #text(size: 12pt, weight: "bold", fill: rgb("2b6cb0"))[{{ loop.index }}. {{ item.ejercicio.titulo }}]
+    ],
+    align(right)[
+      #box(fill: rgb("edf2f7"), inset: (x: 6pt, y: 3pt), radius: 3pt)[
+        #text(size: 8pt, weight: "bold", fill: rgb("4a5568"))[Bloom {{ item.ejercicio.nivel_bloom }} | {{ item.ejercicio.minutos_estimados }} min]
+      ]
+    ]
+  )
+
+  #v(4pt)
+  #line(length: 100%, stroke: 0.5pt + rgb("e2e8f0"))
+  #v(4pt)
+
+  #text(size: 10pt)[
+{{ item.enunciado_typst | default(item.ejercicio.enunciado_md) }}
+  ]
+
+  {% if item.ejercicio.starter_code %}
+  #v(6pt)
+  #text(size: 9pt, weight: "bold", fill: rgb("4a5568"))[Código Base Sugerido:]
+  ```c
+{{ item.ejercicio.starter_code }}
+  ```
+  {% endif %}
+
+  {% if incluir_pistas and item.ejercicio.pistas %}
+  #v(6pt)
+  #block(fill: rgb("fffaf0"), inset: 8pt, radius: 4pt, stroke: 0.5pt + rgb("feebc8"))[
+    #text(weight: "bold", fill: rgb("c05621"))[💡 Pistas de Resolución:]\
+    {% for pista in item.ejercicio.pistas %}
+    - {{ pista }}
+    {% endfor %}
+  ]
+  {% endif %}
+
+  {% if incluir_soluciones and item.ejercicio.solucion %}
+  #v(6pt)
+  #block(fill: rgb("f0fff4"), inset: 8pt, radius: 4pt, stroke: 0.5pt + rgb("c6f6d5"))[
+    #text(weight: "bold", fill: rgb("22543d"))[✓ Solución Canónica de Cátedra:]
+    ```c
+{{ item.ejercicio.solucion }}
+    ```
+  ]
+  {% endif %}
+]
+{% endfor %}

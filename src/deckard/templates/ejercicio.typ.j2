@@ -1,0 +1,71 @@
+// Plantilla Typst para Ejercicio Individual de Deckard
+#set document(title: "{{ ejercicio.titulo }}", author: "Cátedra")
+#set page(
+  paper: "a4",
+  margin: (top: 2.5cm, bottom: 2.5cm, left: 2.5cm, right: 2.5cm),
+  header: align(right)[
+    #text(size: 8.5pt, fill: rgb("666666"))[{{ ejercicio.materia | default('Programación en C') }}]
+  ],
+  footer: context [
+    #line(length: 100%, stroke: 0.5pt + rgb("cccccc"))
+    #grid(
+      columns: (1fr, 1fr),
+      align(left)[#text(size: 8pt, fill: rgb("888888"))[{{ ejercicio.titulo }}]],
+      align(right)[#text(size: 8pt, fill: rgb("888888"))[Página #counter(page).display("1 / 1", both: true)]]
+    )
+  ]
+)
+
+#set text(font: ("Liberation Sans", "DejaVu Sans", "Arial"), size: 10.5pt, lang: "es")
+#set par(justify: true, leading: 0.7em)
+
+#align(center)[
+  #block(
+    fill: rgb("f0f4f8"),
+    inset: 14pt,
+    radius: 6pt,
+    stroke: 1pt + rgb("c2d4e7"),
+    width: 100%
+  )[
+    #text(size: 16pt, weight: "bold", fill: rgb("1b365d"))[{{ ejercicio.titulo }}]\
+    #v(4pt)
+    #text(size: 9.5pt, fill: rgb("718096"))[
+      *Nivel Bloom:* {{ ejercicio.nivel_bloom }} |
+      *Duración Estimada:* {{ ejercicio.minutos_estimados }} min
+    ]
+  ]
+]
+
+#v(10pt)
+
+#text(size: 12pt, weight: "bold", fill: rgb("1b365d"))[Enunciado]
+
+{{ ejercicio.enunciado_md }}
+
+{% if ejercicio.starter_code %}
+#v(8pt)
+#text(size: 10pt, weight: "bold", fill: rgb("4a5568"))[Código Base:]
+```c
+{{ ejercicio.starter_code }}
+```
+{% endif %}
+
+{% if incluir_pistas and ejercicio.pistas %}
+#v(8pt)
+#block(fill: rgb("fffaf0"), inset: 8pt, radius: 4pt, stroke: 0.5pt + rgb("feebc8"))[
+  #text(weight: "bold", fill: rgb("c05621"))[💡 Pistas:]\
+  {% for pista in ejercicio.pistas %}
+  - {{ pista }}
+  {% endfor %}
+]
+{% endif %}
+
+{% if incluir_soluciones and ejercicio.solucion %}
+#v(8pt)
+#block(fill: rgb("f0fff4"), inset: 8pt, radius: 4pt, stroke: 0.5pt + rgb("c6f6d5"))[
+  #text(weight: "bold", fill: rgb("22543d"))[✓ Solución:]
+  ```c
+{{ ejercicio.solucion }}
+  ```
+]
+{% endif %}
