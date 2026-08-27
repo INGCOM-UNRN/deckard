@@ -30,12 +30,18 @@ class MovimientoEjercicio:
 # ---------------------------------------------------------------------------
 
 def cargar_ejercicio(dir_ejercicio: Path) -> Ejercicio:
-    """Lee `<dir>/ejercicio.yaml` (y completa solucion_c desde solucion.c si existe)."""
+    """Lee `<dir>/ejercicio.yaml`, completando enunciado_md desde `enunciado.md` y solucion_c desde `solucion.c` si existen."""
     meta = dir_ejercicio / ARCHIVO_EJERCICIO
     if not meta.is_file():
         raise FileNotFoundError(f"No se encontró {ARCHIVO_EJERCICIO} en {dir_ejercicio}")
     with open(meta, "r", encoding="utf-8") as f:
         datos = yaml.safe_load(f) or {}
+
+    enunciado_archivo = dir_ejercicio / "enunciado.md"
+    if enunciado_archivo.is_file():
+        datos["enunciado_md"] = enunciado_archivo.read_text(encoding="utf-8")
+    else:
+        datos.setdefault("enunciado_md", "")
 
     solucion_archivo = dir_ejercicio / "solucion.c"
     if solucion_archivo.is_file():
@@ -48,17 +54,27 @@ def cargar_ejercicio(dir_ejercicio: Path) -> Ejercicio:
 def guardar_ejercicio(ejercicio: Ejercicio, dir_base: Path) -> Path:
     destino = dir_base / ejercicio.id
     destino.mkdir(parents=True, exist_ok=True)
+
+    # 1. Guardar enunciado en archivo Markdown independiente
+    enunciado_path = destino / "enunciado.md"
+    if ejercicio.enunciado_md is not None:
+        enunciado_path.write_text(ejercicio.enunciado_md, encoding="utf-8")
+
+    # 2. Guardar solución modelo
     solucion = destino / "solucion.c"
     if ejercicio.solucion_c and not solucion.exists():
         solucion.write_text(ejercicio.solucion_c, encoding="utf-8")
 
+    # 3. Guardar cabecera .h si declara funciones
     if ejercicio.funciones:
         header = destino / f"{ejercicio.id}.h"
         if not header.exists():
             header.write_text(ejercicio.generar_cabecera_c(), encoding="utf-8")
 
+    # 4. Guardar metadata en ejercicio.yaml (sin duplicar enunciado_md ni solucion_c)
     datos = ejercicio.to_yaml_dict()
-    solucion_texto = datos.pop("solucion_c", None)
+    datos.pop("solucion_c", None)
+    datos.pop("enunciado_md", None)
     with open(destino / ARCHIVO_EJERCICIO, "w", encoding="utf-8") as f:
         yaml.safe_dump(datos, f, allow_unicode=True, sort_keys=False)
     return destino
@@ -71,6 +87,7 @@ def actualizar_verificacion(dir_ejercicio: Path, verificado: bool) -> None:
     meta = dir_ejercicio / ARCHIVO_EJERCICIO
     datos = ej.to_yaml_dict()
     datos.pop("solucion_c", None)
+    datos.pop("enunciado_md", None)
     with open(meta, "w", encoding="utf-8") as f:
         yaml.safe_dump(datos, f, allow_unicode=True, sort_keys=False)
 
@@ -82,9 +99,10 @@ def buscar_ejercicios(
     bloom: Optional[int] = None,
     verificado: Optional[bool] = None,
     tags: Optional[List[str]] = None,
+    tag: Optional[str] = None,
     recursivo: bool = True,
 ) -> List[Tuple[Path, Ejercicio]]:
-    """Busca y filtra ejercicios en el banco según patrón comodín, tema, bloom y verificación.
+    """Busca y filtra ejercicios en el banco según patrón comodín, tema, bloom, tags y verificación.
 
     Retorna una lista de tuplas (directorio_ejercicio, Ejercicio) ordenadas por id.
     """
@@ -105,6 +123,12 @@ def buscar_ejercicios(
             if recursivo:
                 for yaml_path in banco.rglob(ARCHIVO_EJERCICIO):
                     candidatos_dirs.add(yaml_path.parent)
+
+    filtro_tags: List[str] = []
+    if tags:
+        filtro_tags.extend(tags)
+    if tag and tag.strip():
+        filtro_tags.extend([t.strip() for t in tag.split(",") if t.strip()])
 
     resultados: List[Tuple[Path, Ejercicio]] = []
     for dir_ej in sorted(candidatos_dirs, key=lambda p: str(p)):
@@ -142,8 +166,10 @@ def buscar_ejercicios(
             continue
 
         # Filtro por tags
-        if tags and not any(t.lower() in [x.lower() for x in ej.tags] for t in tags):
-            continue
+        if filtro_tags:
+            ej_tags_lower = [x.lower() for x in ej.tags]
+            if not any(t.lower() in ej_tags_lower for t in filtro_tags):
+                continue
 
         resultados.append((dir_ej, ej))
 

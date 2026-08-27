@@ -121,10 +121,11 @@ def nuevo_ejercicio(
     tema: str = typer.Option(..., "--tema"),
     bloom: int = typer.Option(3, "--bloom", min=1, max=5),
     minutos: int = typer.Option(20, "--minutos", min=1),
+    tags: Optional[str] = typer.Option(None, "--tags", "-T", help="Etiquetas separadas por comas (ej: 'punteros,memoria,facil')."),
     banco: Path = typer.Option(Path("banco"), "--banco"),
     funcion: Optional[List[str]] = typer.Option(None, "--funcion", "-F", help="Firmas de funciones requeridas (ej: 'void invertir_vector(int* vec, size_t n)')."),
 ) -> None:
-    """Crea un ejercicio nuevo con esqueleto de metadata, funciones y solución."""
+    """Crea un ejercicio nuevo con esqueleto de metadata, funciones, enunciado.md y solución."""
     from deckard.core.models import FuncionSpec
 
     funciones_specs = []
@@ -134,6 +135,8 @@ def nuevo_ejercicio(
                 if part.strip():
                     funciones_specs.append(FuncionSpec.parse(part.strip()))
 
+    tags_lista = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+
     ejercicio = Ejercicio(
         id=eid,
         titulo=titulo,
@@ -142,6 +145,7 @@ def nuevo_ejercicio(
         minutos_estimados=minutos,
         enunciado_md=f"# {titulo}\n\n(Completar enunciado)\n",
         solucion_c="",
+        tags=tags_lista,
         funciones=funciones_specs,
     )
     if funciones_specs:
@@ -151,9 +155,12 @@ def nuevo_ejercicio(
 
     destino = guardar_ejercicio(ejercicio, banco)
     console.print(f"[green]✓ Ejercicio creado[/green] en {destino}")
+    console.print(f"  • Enunciado: [cyan]{destino}/enunciado.md[/cyan]")
     if funciones_specs:
         console.print(f"  • Cabecera generada: [cyan]{eid}.h[/cyan] ({len(funciones_specs)} funciones declaradas)")
-    console.print("Editá [bold]ejercicio.yaml[/bold] y [bold]solucion.c[/bold], luego corré [bold]deckard verify[/bold].")
+    if tags_lista:
+        console.print(f"  • Tags: [dim]{', '.join(tags_lista)}[/dim]")
+    console.print("Editá [bold]enunciado.md[/bold], [bold]ejercicio.yaml[/bold] y [bold]solucion.c[/bold], luego corré [bold]deckard verify[/bold].")
 
 
 # ---------------------------------------------------------------------------
@@ -170,15 +177,17 @@ def bank_list(
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
     tema: Optional[str] = typer.Option(None, "--tema", "-t", help="Filtrar por tema."),
     bloom: Optional[int] = typer.Option(None, "--bloom", "-b", min=1, max=5, help="Filtrar por nivel de Bloom (1-5)."),
+    tag: Optional[str] = typer.Option(None, "--tag", "-T", help="Filtrar por etiqueta/tag."),
     verificado: Optional[bool] = typer.Option(None, "--verificado/--no-verificado", help="Filtrar por estado de verificación."),
 ) -> None:
-    """Lista los ejercicios del banco con su nivel, carga y filtros."""
-    items = buscar_ejercicios(banco, patron=patron, tema=tema, bloom=bloom, verificado=verificado)
+    """Lista los ejercicios del banco con su nivel, carga, tags y filtros."""
+    items = buscar_ejercicios(banco, patron=patron, tema=tema, bloom=bloom, tag=tag, verificado=verificado)
     tabla = Table(title=f"Banco de ejercicios ({len(items)} encontrados)")
     tabla.add_column("id", style="cyan")
     tabla.add_column("tema")
     tabla.add_column("bloom", justify="center")
     tabla.add_column("min", justify="right")
+    tabla.add_column("tags", style="dim")
     tabla.add_column("verificado", justify="center")
     total_min = 0
     verificados_count = 0
@@ -186,8 +195,9 @@ def bank_list(
         total_min += e.minutos_estimados
         if e.verificado:
             verificados_count += 1
+        tags_str = ", ".join(e.tags) if e.tags else "—"
         tabla.add_row(e.id, e.tema, f"B{int(e.bloom)} {e.bloom.name.lower()}",
-                      str(e.minutos_estimados), "✓" if e.verificado else "—")
+                      str(e.minutos_estimados), tags_str, "✓" if e.verificado else "—")
     console.print(tabla)
     pct = (verificados_count / len(items) * 100) if items else 0
     console.print(f"[dim]{total_min} minutos totales ({total_min/60:.1f}h) · Verificados: {verificados_count}/{len(items)} ({pct:.0f}%)[/dim]")
@@ -591,6 +601,232 @@ def verify(
         console.print(f"[yellow]📝 Reporte de fallos guardado en:[/yellow] {log_fallos}")
 
     raise typer.Exit(code=0 if total_ok == len(candidatos) else 1)
+
+
+@verify_app.command("audit")
+@verify_app.command("health")
+@app.command("audit")
+def audit_cmd(
+    patron: Optional[str] = typer.Argument(None, help="ID o patrón comodín de ejercicios a auditar."),
+    banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
+    tema: Optional[str] = typer.Option(None, "--tema", "-t", help="Filtrar por tema."),
+    bloom: Optional[int] = typer.Option(None, "--bloom", "-b", min=1, max=5, help="Filtrar por nivel de Bloom."),
+    tag: Optional[str] = typer.Option(None, "--tag", "-T", help="Filtrar por etiqueta/tag."),
+    min_chars: int = typer.Option(100, "--min-chars", "-m", help="Largo mínimo de caracteres en enunciado para considerar redacción suficiente."),
+    solo_pobres: bool = typer.Option(False, "--pobres", "--short", "-p", help="Mostrar únicamente ejercicios con redacción pobre o incompleta."),
+    solo_incompletos: bool = typer.Option(False, "--incompletos", "-i", help="Mostrar solo ejercicios con componentes faltantes."),
+    sin_tests: bool = typer.Option(False, "--sin-tests", help="Filtrar ejercicios sin casos de prueba (I/O ni funciones)."),
+    sin_pistas: bool = typer.Option(False, "--sin-pistas", help="Filtrar ejercicios sin pistas progresivas."),
+    sin_solucion: bool = typer.Option(False, "--sin-solucion", help="Filtrar ejercicios sin solución modelo."),
+    json_output: bool = typer.Option(False, "--json", help="Emitir reporte estructurado en formato JSON."),
+) -> None:
+    """Audita la salud del banco: longitud y calidad de redacción del enunciado, y completitud de especificación."""
+    import json
+    from deckard.core.audit import auditar_banco
+
+    reportes = auditar_banco(
+        banco=banco,
+        patron=patron,
+        tema=tema,
+        bloom=bloom,
+        tag=tag,
+        min_chars=min_chars,
+        solo_pobres=solo_pobres,
+        solo_incompletos=solo_incompletos,
+        sin_tests=sin_tests,
+        sin_pistas=sin_pistas,
+        sin_solucion=sin_solucion,
+    )
+
+    if json_output:
+        data = [
+            {
+                "id": r.id,
+                "tema": r.tema,
+                "bloom": r.bloom,
+                "minutos": r.minutos,
+                "longitud_enunciado_chars": r.longitud_enunciado_chars,
+                "longitud_enunciado_words": r.longitud_enunciado_words,
+                "redaccion_pobre": r.redaccion_pobre,
+                "diagnostico_redaccion": r.diagnostico_redaccion,
+                "tiene_enunciado_md": r.tiene_enunciado_md_file,
+                "tiene_solucion": r.tiene_solucion,
+                "pistas_count": r.cantidad_pistas,
+                "tests_io_count": r.cantidad_testcases_io,
+                "tests_fn_count": r.cantidad_tests_funciones,
+                "tags": r.tags,
+                "verificado": r.verificado,
+                "faltantes": r.faltantes,
+                "alertas": r.alertas,
+            }
+            for r in reportes
+        ]
+        console.print(json.dumps(data, indent=2, ensure_ascii=False))
+        return
+
+    if not reportes:
+        console.print(f"[yellow]No se encontraron ejercicios en '{banco}' con los filtros especificados.[/yellow]")
+        return
+
+    tabla = Table(title=f"Auditoría de Salud del Banco ({len(reportes)} ejercicios)")
+    tabla.add_column("Ejercicio", style="cyan", no_wrap=True)
+    tabla.add_column("Bloom", justify="center")
+    tabla.add_column("Enunciado", justify="right")
+    tabla.add_column("Redac.", justify="center")
+    tabla.add_column("MD", justify="center")
+    tabla.add_column("Sol.", justify="center")
+    tabla.add_column("Pistas", justify="center")
+    tabla.add_column("Tests", justify="center")
+    tabla.add_column("Tags", style="dim")
+    tabla.add_column("Faltantes / Alertas", style="yellow")
+
+    total_chars = 0
+    total_words = 0
+    pobres_count = 0
+    sin_tests_count = 0
+    sin_sol_count = 0
+    sin_pistas_count = 0
+
+    for r in reportes:
+        total_chars += r.longitud_enunciado_chars
+        total_words += r.longitud_enunciado_words
+
+        if r.redaccion_pobre:
+            pobres_count += 1
+            if r.diagnostico_redaccion == "pobre":
+                redac_str = "[bold red]Pobre[/bold red]"
+            else:
+                redac_str = "[yellow]Breve[/yellow]"
+        else:
+            redac_str = "[green]Completo[/green]"
+
+        md_str = "[green]enunciado.md[/green]" if r.tiene_enunciado_md_file else "[yellow]en yaml[/yellow]"
+        sol_str = "[green]✓[/green]" if r.tiene_solucion else "[red]✗[/red]"
+        if not r.tiene_solucion:
+            sin_sol_count += 1
+
+        pistas_str = f"{r.cantidad_pistas}" if r.cantidad_pistas > 0 else "[yellow]0[/yellow]"
+        if r.cantidad_pistas == 0:
+            sin_pistas_count += 1
+
+        if r.total_tests > 0:
+            tests_str = f"{r.total_tests} ({r.cantidad_testcases_io} io, {r.cantidad_tests_funciones} fn)"
+        else:
+            tests_str = "[red]0[/red]"
+            sin_tests_count += 1
+
+        tags_str = ", ".join(r.tags) if r.tags else "[dim]—[/dim]"
+        obs = ", ".join(r.faltantes) if r.faltantes else "[green]✓ Completo[/green]"
+
+        largo_str = f"{r.longitud_enunciado_chars} ch ({r.longitud_enunciado_words} w)"
+        tabla.add_row(
+            r.id,
+            f"B{r.bloom}",
+            largo_str,
+            redac_str,
+            md_str,
+            sol_str,
+            pistas_str,
+            tests_str,
+            tags_str,
+            obs,
+        )
+
+    console.print(tabla)
+
+    avg_chars = total_chars / len(reportes) if reportes else 0
+    avg_words = total_words / len(reportes) if reportes else 0
+    console.print(f"[bold]Resumen de Auditoría:[/bold]")
+    console.print(f"  • Total analizados: [cyan]{len(reportes)}[/cyan]")
+    console.print(f"  • Longitud media de enunciado: [bold]{avg_chars:.0f} caracteres[/bold] (~{avg_words:.0f} palabras)")
+    if pobres_count > 0:
+        console.print(f"  • [red]⚠️  {pobres_count} ejercicio(s) con redacción pobre o breve (<{min_chars} chars)[/red]")
+    if sin_tests_count > 0:
+        console.print(f"  • [red]⚠️  {sin_tests_count} ejercicio(s) sin casos de prueba (I/O o funciones)[/red]")
+    if sin_sol_count > 0:
+        console.print(f"  • [red]⚠️  {sin_sol_count} ejercicio(s) sin solución modelo[/red]")
+    if sin_pistas_count > 0:
+        console.print(f"  • [yellow]💡 {sin_pistas_count} ejercicio(s) sin pistas progresivas[/yellow]")
+    if pobres_count == 0 and sin_tests_count == 0 and sin_sol_count == 0:
+        console.print(f"[green]✓ Todos los ejercicios analizados cuentan con especificación completa y saludable.[/green]")
+
+
+# ---------------------------------------------------------------------------
+# tag app
+# ---------------------------------------------------------------------------
+
+tag_app = typer.Typer(name="tag", help="Gestión y consulta de etiquetas (tags) en el banco.", no_args_is_help=True)
+app.add_typer(tag_app, name="tag")
+
+
+@tag_app.command("list")
+def tag_list_cmd(
+    banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
+) -> None:
+    """Lista todas las etiquetas presentes en el banco de ejercicios."""
+    from deckard.core.tags import listar_tags_banco
+
+    tag_map = listar_tags_banco(banco)
+    if not tag_map:
+        console.print(f"[yellow]No se encontraron etiquetas en '{banco}'.[/yellow]")
+        return
+
+    tabla = Table(title=f"Etiquetas del Banco ({len(tag_map)} encontradas)")
+    tabla.add_column("Tag / Etiqueta", style="bold cyan")
+    tabla.add_column("Ejercicios", justify="right")
+    tabla.add_column("IDs de Ejemplo", style="dim")
+
+    for tag_name, eids in tag_map.items():
+        ejemplos = ", ".join(eids[:6]) + ("..." if len(eids) > 6 else "")
+        tabla.add_row(tag_name, str(len(eids)), ejemplos)
+
+    console.print(tabla)
+
+
+@tag_app.command("add")
+def tag_add_cmd(
+    patron: str = typer.Argument(..., help="ID o patrón comodín de ejercicios (ej: 'invertir-*', '*')."),
+    tags: List[str] = typer.Argument(..., help="Etiquetas a agregar."),
+    banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
+) -> None:
+    """Agrega una o más etiquetas a ejercicios del banco."""
+    from deckard.core.tags import agregar_tags_a_ejercicios
+
+    tags_flat: List[str] = []
+    for t in tags:
+        tags_flat.extend([x.strip() for x in t.split(",") if x.strip()])
+
+    modificados = agregar_tags_a_ejercicios(banco, patron, tags_flat)
+    if not modificados:
+        console.print(f"[yellow]No se modificaron ejercicios para '{patron}'.[/yellow]")
+        return
+
+    console.print(f"[green]✓ Tags agregados a {len(modificados)} ejercicio(s):[/green]")
+    for eid, t_list in modificados:
+        console.print(f"  • [cyan]{eid}[/cyan] -> tags: [dim]{', '.join(t_list)}[/dim]")
+
+
+@tag_app.command("remove")
+def tag_remove_cmd(
+    patron: str = typer.Argument(..., help="ID o patrón comodín de ejercicios."),
+    tags: List[str] = typer.Argument(..., help="Etiquetas a remover."),
+    banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
+) -> None:
+    """Remueve una o más etiquetas de ejercicios del banco."""
+    from deckard.core.tags import remover_tags_de_ejercicios
+
+    tags_flat: List[str] = []
+    for t in tags:
+        tags_flat.extend([x.strip() for x in t.split(",") if x.strip()])
+
+    modificados = remover_tags_de_ejercicios(banco, patron, tags_flat)
+    if not modificados:
+        console.print(f"[yellow]No se modificaron ejercicios para '{patron}'.[/yellow]")
+        return
+
+    console.print(f"[green]✓ Tags removidos de {len(modificados)} ejercicio(s):[/green]")
+    for eid, t_list in modificados:
+        console.print(f"  • [cyan]{eid}[/cyan] -> tags: [dim]{', '.join(t_list)}[/dim]")
 
 
 # ---------------------------------------------------------------------------
