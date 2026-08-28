@@ -78,6 +78,11 @@ class Ejercicio(BaseModel):
     verificado: bool = False        # lo setea `deckard verify`
     funciones: List[FuncionSpec] = Field(default_factory=list)
     tests_funciones: List[CasoTestFuncion] = Field(default_factory=list)
+    tipo_entrega: str = Field(default="archivos_individuales", description="Tipo de entrega / modo de construcción: 'archivos_individuales', 'makefile', 'libreria', 'proyecto'")
+    familia: Optional[str] = Field(default=None, description="Identificador de la familia o grupo de ejercicios relacionados (ej. 'tda_lista', 'lib_string').")
+    rol_familia: Optional[str] = Field(default=None, description="Rol dentro de la familia: 'libreria' (TDA/módulo), 'tests' (pruebas unitarias), 'uso'/'app' (aplicación cliente).")
+    dependencias: List[str] = Field(default_factory=list, description="IDs de ejercicios requeridos previamente.")
+    archivos_adicionales: List[str] = Field(default_factory=list, description="Archivos de cabecera, Makefile o datos adicionales.")
 
     @property
     def tiene_funciones(self) -> bool:
@@ -85,7 +90,9 @@ class Ejercicio(BaseModel):
 
     @property
     def tipo_ejercicio(self) -> str:
-        """Determina el tipo de ejercicio (funciones vs io)."""
+        """Determina el tipo de ejercicio (funciones vs io vs makefile/proyecto)."""
+        if self.tipo_entrega in ("makefile", "proyecto", "libreria"):
+            return self.tipo_entrega
         return "funciones" if self.tiene_funciones else "io"
 
     def ruta_categoria(self, criterio: str = "bloom/tipo") -> Path:
@@ -191,6 +198,8 @@ class GuiaSpec(BaseModel):
     bloom_min: NivelBloom = NivelBloom.RECORDAR
     bloom_max: NivelBloom = NivelBloom.EVALUAR
     cantidad_maxima: Optional[int] = None
+    tipo_entrega: Optional[str] = Field(default=None, description="Tipo de entrega / modo de construcción: 'archivos_individuales', 'makefile', 'libreria', 'proyecto'")
+    familias: List[str] = Field(default_factory=list, description="Familias de ejercicios requeridas o incluidas.")
 
 
 class Seleccion(BaseModel):
@@ -199,6 +208,8 @@ class Seleccion(BaseModel):
     guia: str
     ejercicios: List[Ejercicio]
     minutos_totales: int
+    tipo_entrega: Optional[str] = None
+    familias: List[str] = Field(default_factory=list)
 
     @property
     def distribucion_bloom(self) -> dict:

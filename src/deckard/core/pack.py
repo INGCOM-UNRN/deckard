@@ -95,14 +95,17 @@ def build_manifest(
     compiler_flags: List[str],
     payload_files: Dict[str, bytes],
     makefile_cfg: Optional[dict] = None,
+    tipo_entrega: str = "archivos_individuales",
 ) -> dict:
     """Construye el manifiesto con los metadatos y hashes de integridad SHA-256."""
     manifest = {
         "meta": {
             "format_version": FORMAT_VERSION,
             "practica": practica_slug,
+            "tipo_entrega": tipo_entrega,
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         },
+        "tipo_entrega": tipo_entrega,
         "checks": {cid: True for cid in sorted(enabled_check_ids)},
         "compiler": {
             "executable": compiler_executable,
@@ -223,6 +226,7 @@ def empaquetar_ejercicio(
         compiler_executable="gcc",
         compiler_flags=flags,
         payload_files=payload,
+        tipo_entrega=ejercicio.tipo_entrega,
     )
 
     destino = out_path or (dir_ejercicio.parent / f"{ejercicio.id}.ripkg")

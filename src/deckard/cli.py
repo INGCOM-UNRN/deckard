@@ -374,6 +374,7 @@ def show_ejercicio(
         grid.add_row("Tema:", ej.tema)
         grid.add_row("Bloom:", f"B{int(ej.bloom)} {ej.bloom.name.lower()}")
         grid.add_row("Carga estimada:", f"~{ej.minutos_estimados} min")
+        grid.add_row("Tipo entrega:", ej.tipo_entrega)
         grid.add_row("Verificado:", "[green]✓ Sí[/green]" if ej.verificado else "[dim]— No[/dim]")
         if ej.funciones:
             grid.add_row("Funciones C:", f"{len(ej.funciones)} requeridas")

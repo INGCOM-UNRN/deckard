@@ -121,3 +121,58 @@ def test_pack_and_unpack_bundle(sample_bank: Path, tmp_path: Path):
     extract_dest = tmp_path / "extracted_bank"
     res_unpack = desempaquetar_bundle_deckard(tar_dest, extract_dest)
     assert (extract_dest / "sumar_elementos" / "ejercicio.yaml").is_file()
+
+
+def test_exercise_family_and_project_modes():
+    from deckard.core.models import Ejercicio, NivelBloom, GuiaSpec
+
+    ej_lib = Ejercicio(
+        id="tda_vector_lib",
+        titulo="TDA Vector Dinámico - Librería",
+        tema="estructuras_dinamicas",
+        bloom=NivelBloom.APLICAR,
+        minutos=45,
+        tipo_entrega="libreria",
+        familia="tda_vector",
+        rol_familia="libreria",
+        archivos_adicionales=["vector.h", "vector.c", "Makefile"],
+    )
+
+    ej_test = Ejercicio(
+        id="tda_vector_tests",
+        titulo="TDA Vector Dinámico - Suite de Tests",
+        tema="estructuras_dinamicas",
+        bloom=NivelBloom.ANALIZAR,
+        minutos=30,
+        tipo_entrega="makefile",
+        familia="tda_vector",
+        rol_familia="tests",
+        dependencias=["tda_vector_lib"],
+    )
+
+    ej_app = Ejercicio(
+        id="tda_vector_app",
+        titulo="TDA Vector Dinámico - Aplicación Demo",
+        tema="estructuras_dinamicas",
+        bloom=NivelBloom.APLICAR,
+        minutos=20,
+        tipo_entrega="makefile",
+        familia="tda_vector",
+        rol_familia="uso",
+        dependencias=["tda_vector_lib"],
+    )
+
+    assert ej_lib.tipo_ejercicio == "libreria"
+    assert ej_test.familia == "tda_vector"
+    assert ej_test.rol_familia == "tests"
+    assert "tda_vector_lib" in ej_app.dependencias
+
+    spec = GuiaSpec(
+        nombre="Guía 4 - TDAs y Modularidad",
+        duracion_min=120,
+        tipo_entrega="makefile",
+        familias=["tda_vector"],
+    )
+    assert spec.tipo_entrega == "makefile"
+    assert "tda_vector" in spec.familias
+
