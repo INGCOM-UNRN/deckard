@@ -70,7 +70,7 @@ class Ejercicio(BaseModel):
     tema: str                       # p.ej. "punteros", "memoria_dinamica"
     bloom: NivelBloom
     minutos_estimados: int = Field(..., ge=1, le=600, alias="minutos")
-    enunciado_md: str = ""          # markdown del enunciado
+    enunciado_md: str = Field(default="", alias="enunciado")          # markdown del enunciado
     solucion_c: str = ""            # solución modelo (verificada con ripley)
     starter_code: str = ""          # código inicial o prototipo
     pistas: List[str] = Field(default_factory=list)  # progresivas, ordenadas
@@ -83,6 +83,22 @@ class Ejercicio(BaseModel):
     rol_familia: Optional[str] = Field(default=None, description="Rol dentro de la familia: 'libreria' (TDA/módulo), 'tests' (pruebas unitarias), 'uso'/'app' (aplicación cliente).")
     dependencias: List[str] = Field(default_factory=list, description="IDs de ejercicios requeridos previamente.")
     archivos_adicionales: List[str] = Field(default_factory=list, description="Archivos de cabecera, Makefile o datos adicionales.")
+
+    @property
+    def nivel(self) -> NivelBloom:
+        return self.bloom
+
+    @property
+    def minutos(self) -> int:
+        return self.minutos_estimados
+
+    @property
+    def tiempo_estimado(self) -> int:
+        return self.minutos_estimados
+
+    @property
+    def enunciado(self) -> str:
+        return self.enunciado_md
 
     @property
     def tiene_funciones(self) -> bool:
