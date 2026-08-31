@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from enum import IntEnum
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -83,6 +83,7 @@ class Ejercicio(BaseModel):
     rol_familia: Optional[str] = Field(default=None, description="Rol dentro de la familia: 'libreria' (TDA/módulo), 'tests' (pruebas unitarias), 'uso'/'app' (aplicación cliente).")
     dependencias: List[str] = Field(default_factory=list, description="IDs de ejercicios requeridos previamente.")
     archivos_adicionales: List[str] = Field(default_factory=list, description="Archivos de cabecera, Makefile o datos adicionales.")
+    archivos: Dict[str, str] = Field(default_factory=dict, description="Mapeo de nombre de archivo a contenido.")
 
     @property
     def nivel(self) -> NivelBloom:
@@ -149,6 +150,17 @@ class Ejercicio(BaseModel):
             if not partes:
                 partes = [bloom_slug, tipo_slug]
             return Path(*partes) / self.id
+
+    @field_validator("bloom", mode="before")
+    @classmethod
+    def parse_bloom(cls, v):
+        if isinstance(v, str):
+            v_clean = v.strip().upper()
+            if v_clean in NivelBloom.__members__:
+                return NivelBloom[v_clean]
+            if v_clean.isdigit():
+                return NivelBloom(int(v_clean))
+        return v
 
     @field_validator("pistas")
     @classmethod

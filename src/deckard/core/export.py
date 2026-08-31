@@ -216,26 +216,63 @@ def renderizar_guia_md(
     return md_salida, base_path
 
 
+BLOOM_TYPST_COLORS: Dict[str, Tuple[str, str]] = {
+    "RECORDAR": ('rgb("dbeafe")', 'rgb("1e40af")'),       # Azul
+    "COMPRENDER": ('rgb("cffafe")', 'rgb("155e75")'),     # Cian
+    "APLICAR": ('rgb("dcfce7")', 'rgb("166534")'),        # Verde
+    "ANALIZAR": ('rgb("fef9c3")', 'rgb("854d0e")'),       # Amarillo
+    "EVALUAR": ('rgb("ffedd5")', 'rgb("9a3412")'),        # Naranja
+    "CREAR": ('rgb("f3e8ff")', 'rgb("6b21a8")'),          # Púrpura
+}
+
+
+def generar_badges_typst(ejercicio: Ejercicio, incluir_tags: bool = True) -> str:
+    """Genera código Typst para renderizar badges visuales de dificultad, tiempo y tags (QoL 13)."""
+    bloom_nombre = ejercicio.bloom.name
+    bg_color, text_color = BLOOM_TYPST_COLORS.get(bloom_nombre, ('rgb("f3f4f6")', 'rgb("374151")'))
+
+    badge_def = (
+        '#let badge(txt, fill: rgb("e5e7eb"), text-color: black) = box('
+        'fill: fill, radius: 3.5pt, inset: (x: 6pt, y: 3pt), baseline: 0%, '
+        'text(fill: text-color, size: 7.5pt, weight: "bold", txt))\n'
+    )
+    badges = [
+        f'badge("{bloom_nombre}", fill: {bg_color}, text-color: {text_color})',
+        f'badge("⏱ {ejercicio.minutos_estimados} min", fill: rgb("fef3c7"), text-color: rgb("b45309"))',
+        f'badge("{ejercicio.tema.upper()}", fill: rgb("e0e7ff"), text-color: rgb("3730a3"))',
+    ]
+    if incluir_tags and hasattr(ejercicio, "tags") and ejercicio.tags:
+        for tag in ejercicio.tags[:3]:
+            badges.append(f'badge("#{tag}", fill: rgb("f1f5f9"), text-color: rgb("475569"))')
+
+    return badge_def + "#stack(dir: ltr, spacing: 5pt, " + ", ".join(badges) + ")\n"
+
+
 def renderizar_ejercicio_typst(
     ejercicio: Ejercicio,
     dir_ejercicio: Optional[Path] = None,
     template_nombre_o_ruta: Optional[str] = None,
     incluir_solucion: bool = False,
     incluir_pistas: bool = False,
+    incluir_badges: bool = True,
     dir_banco: Optional[Path] = None,
 ) -> Tuple[str, Optional[Path]]:
-    """Renderiza un ejercicio a formato Typst (.typ)."""
+    """Renderiza un ejercicio a formato Typst (.typ) con badges visuales."""
     template_str, base_path = buscar_plantilla(
         template_nombre_o_ruta, tipo="ejercicio", extension=".typ.j2", dir_banco=dir_banco
     )
     env = jinja2.Environment(autoescape=False)
     template = env.from_string(template_str)
 
+    badges_code = generar_badges_typst(ejercicio) if incluir_badges else ""
+
     typst_salida = template.render(
         ejercicio=ejercicio,
         dir_ejercicio=dir_ejercicio,
         incluir_soluciones=incluir_solucion,
         incluir_pistas=incluir_pistas,
+        badges_typst=badges_code,
+        generar_badges=generar_badges_typst,
     )
     return typst_salida, base_path
 
@@ -246,10 +283,11 @@ def renderizar_guia_typst(
     template_nombre_o_ruta: Optional[str] = None,
     incluir_soluciones: bool = False,
     incluir_pistas: bool = False,
+    incluir_badges: bool = True,
     dir_banco: Optional[Path] = None,
     dos_columnas: bool = False,
 ) -> Tuple[str, Optional[Path]]:
-    """Renderiza una guía completa a formato Typst (.typ)."""
+    """Renderiza una guía completa a formato Typst (.typ) con badges por ejercicio."""
     template_str, base_path = buscar_plantilla(
         template_nombre_o_ruta, tipo="guia", extension=".typ.j2", dir_banco=dir_banco
     )
@@ -263,6 +301,7 @@ def renderizar_guia_typst(
             "ejercicio": ej,
             "dir": dir_ej,
             "enunciado_typst": ej.enunciado_md,
+            "badges_typst": generar_badges_typst(ej) if incluir_badges else "",
         })
         total_min += ej.minutos_estimados
 
@@ -274,6 +313,7 @@ def renderizar_guia_typst(
         incluir_soluciones=incluir_soluciones,
         incluir_pistas=incluir_pistas,
         dos_columnas=dos_columnas,
+        generar_badges=generar_badges_typst,
     )
     return typst_salida, base_path
 

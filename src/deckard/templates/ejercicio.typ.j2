@@ -33,6 +33,12 @@
       *Nivel Bloom:* {{ ejercicio.nivel_bloom }} |
       *Duración Estimada:* {{ ejercicio.minutos_estimados }} min
     ]
+    {% if badges_typst %}
+    #v(6pt)
+    #align(center)[
+      {{ badges_typst }}
+    ]
+    {% endif %}
   ]
 ]
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -2840,6 +2841,257 @@ def cmd_spellcheck(
         console.print("\n[dim]Tip: Usá '--fix' para aplicar automáticamente las sugerencias.[/dim]")
 
     raise typer.Exit(code=1)
+
+
+@app.command("pack-zip")
+@app.command("export-zip")
+def cmd_pack_zip(
+    objetivo: str = typer.Argument(..., help="ID de ejercicio, ruta a ejercicio.yaml o guía .yaml."),
+    salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Ruta de destino del archivo .zip."),
+    banco: Path = typer.Option(Path("banco"), "--banco", "-b", help="Directorio raíz del banco."),
+    no_tests: bool = typer.Option(False, "--no-tests", help="Excluir archivos de prueba en el starter kit."),
+    no_pistas: bool = typer.Option(False, "--no-pistas", help="Excluir pistas en el starter kit."),
+) -> None:
+    """Empaqueta un starter kit o guía completa en un archivo ZIP con clave de entrega (QoL 11)."""
+    from deckard.core.bank import buscar_ejercicios, cargar_ejercicio
+    from deckard.core.starter_zip import empaquetar_starter_zip, empaquetar_guia_zip
+
+    obj_path = Path(objetivo)
+    if obj_path.exists():
+        try:
+            ej = cargar_ejercicio(obj_path)
+            dest_zip, clave, sha_h = empaquetar_starter_zip(
+                ej, out_zip=salida, incluir_tests=not no_tests, incluir_pistas=not no_pistas
+            )
+            console.print(Panel(
+                f"[bold green]✓ Starter ZIP empaquetado exitosamente:[/bold green]\n\n"
+                f"• **Archivo:** [cyan]{dest_zip}[/cyan]\n"
+                f"• **Clave de Entrega:** [bold yellow]{clave}[/bold yellow]\n"
+                f"• **Integridad SHA-256:** [dim]{sha_h}[/dim]",
+                title=f"Starter Kit: {ej.id}",
+                border_style="green",
+            ))
+            return
+        except Exception:
+            try:
+                dest_zip, clave, tot = empaquetar_guia_zip(obj_path, banco, out_zip=salida)
+                console.print(Panel(
+                    f"[bold green]✓ Bundle de Guía empaquetado exitosamente:[/bold green]\n\n"
+                    f"• **Archivo:** [cyan]{dest_zip}[/cyan]\n"
+                    f"• **Clave Maestra:** [bold yellow]{clave}[/bold yellow]\n"
+                    f"• **Ejercicios incluidos:** {tot}",
+                    title=f"Bundle de Guía",
+                    border_style="green",
+                ))
+                return
+            except Exception:
+                pass
+
+    matches = buscar_ejercicios(banco, patron=objetivo, recursivo=True)
+    if not matches:
+        console.print(f"[bold red]No se encontró el ejercicio o guía '{objetivo}' en {banco}.[/bold red]")
+        raise typer.Exit(code=1)
+
+    dir_p, ej = matches[0]
+    dest_zip, clave, sha_h = empaquetar_starter_zip(
+        ej, out_zip=salida, incluir_tests=not no_tests, incluir_pistas=not no_pistas
+    )
+    console.print(Panel(
+        f"[bold green]✓ Starter ZIP empaquetado exitosamente:[/bold green]\n\n"
+        f"• **Archivo:** [cyan]{dest_zip}[/cyan]\n"
+        f"• **Clave de Entrega:** [bold yellow]{clave}[/bold yellow]\n"
+        f"• **Integridad SHA-256:** [dim]{sha_h}[/dim]",
+        title=f"Starter Kit: {ej.id}",
+        border_style="green",
+    ))
+
+
+@app.command("check-ambiguity")
+@app.command("audit-statements")
+def cmd_check_ambiguity(
+    objetivo: Optional[str] = typer.Argument(None, help="ID de ejercicio, ruta a archivo o guía a auditar."),
+    banco: Path = typer.Option(Path("banco"), "--banco", "-b", help="Directorio raíz del banco."),
+    json_output: bool = typer.Option(False, "--json", help="Emitir reporte estructurado en formato JSON."),
+    output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", "-o", help="Generar reporte en Markdown."),
+) -> None:
+    """Audita ambigüedades, términos vagos y calidad pedagógica en los enunciados (QoL 12)."""
+    from deckard.core.bank import buscar_ejercicios, cargar_ejercicio, listar_ejercicios
+    from deckard.core.ambiguity_checker import auditar_banco_ambiguedades
+    from deckard.core.guides import cargar_guia_con_ejercicios
+
+    ejercicios = []
+    if objetivo:
+        obj_path = Path(objetivo)
+        if obj_path.exists():
+            try:
+                ej = cargar_ejercicio(obj_path)
+                ejercicios.append(ej)
+            except Exception:
+                try:
+                    _, items = cargar_guia_con_ejercicios(obj_path, banco)
+                    ejercicios = [ej for _, ej in items if ej is not None]
+                except Exception:
+                    pass
+        if not ejercicios:
+            matches = buscar_ejercicios(banco, patron=objetivo, recursivo=True)
+            if matches:
+                ejercicios = [matches[0][1]]
+    else:
+        ejercicios = listar_ejercicios(banco)
+
+    if not ejercicios:
+        console.print("[yellow]No se encontraron ejercicios para auditar.[/yellow]")
+        raise typer.Exit(code=0)
+
+    reporte = auditar_banco_ambiguedades(ejercicios)
+
+    if output_md:
+        lines = [
+            "# Auditoría de Calidad y Ambigüedad de Enunciados (Deckard)\n",
+            f"- **Ejercicios auditados:** {reporte['total_ejercicios']}",
+            f"- **Ejercicios con observaciones:** {reporte['ejercicios_con_observaciones']}",
+            f"- **Total de observaciones:** {reporte['total_observaciones']}\n",
+        ]
+        if reporte["total_observaciones"] == 0:
+            lines.append("> [!TIP]\n> Todos los enunciados presentan formulaciones precisas y sin ambigüedades.")
+        else:
+            lines.append("| Ejercicio | Categoría | Severidad | Mensaje | Sugerencia |")
+            lines.append("| :--- | :--- | :---: | :--- | :--- |")
+            for obs in reporte["observaciones"]:
+                lines.append(f"| `{obs.ejercicio_id}` | {obs.categoria} | `{obs.severidad}` | {obs.mensaje} | {obs.sugerencia} |")
+        output_md.parent.mkdir(parents=True, exist_ok=True)
+        output_md.write_text("\n".join(lines), encoding="utf-8")
+        console.print(f"[bold green]✓ Reporte Markdown generado en:[/bold green] [cyan]{output_md}[/cyan]")
+        raise typer.Exit(code=0 if reporte["total_observaciones"] == 0 else 1)
+
+    if json_output:
+        res = {
+            "total_ejercicios": reporte["total_ejercicios"],
+            "ejercicios_con_observaciones": reporte["ejercicios_con_observaciones"],
+            "total_observaciones": reporte["total_observaciones"],
+            "observaciones": [obs.to_dict() for obs in reporte["observaciones"]],
+        }
+        print(json.dumps(res, indent=2, ensure_ascii=False))
+        raise typer.Exit(code=0 if reporte["total_observaciones"] == 0 else 1)
+
+    if reporte["total_observaciones"] == 0:
+        console.print(Panel(
+            f"[bold green]✓ Enunciados Impecables[/bold green]\n"
+            f"Se auditaron {len(ejercicios)} ejercicios sin ambigüedades ni términos vagos detectados.",
+            title="[bold green]Ambiguity Check OK[/bold green]",
+            border_style="green",
+        ))
+        raise typer.Exit(code=0)
+
+    tabla = Table(title=f"⚠️ Auditoría de Enunciados ({reporte['total_observaciones']} observaciones)", border_style="yellow")
+    tabla.add_column("Ejercicio", style="bold cyan")
+    tabla.add_column("Categoría", style="magenta")
+    tabla.add_column("Severidad", justify="center")
+    tabla.add_column("Problema", style="white")
+    tabla.add_column("Sugerencia Pedagógica", style="dim green")
+
+    for obs in reporte["observaciones"]:
+        color_sev = "red" if obs.severidad == "alta" else ("yellow" if obs.severidad == "media" else "cyan")
+        tabla.add_row(
+            obs.ejercicio_id,
+            obs.categoria,
+            f"[{color_sev}]{obs.severidad.upper()}[/{color_sev}]",
+            obs.mensaje,
+            obs.sugerencia,
+        )
+
+    console.print(tabla)
+    raise typer.Exit(code=1)
+
+
+@app.command("ascii-diagram")
+@app.command("diagram-ascii")
+def cmd_ascii_diagram(
+    tipo: str = typer.Argument("lista", help="Tipo de estructura: 'lista', 'lista-doble', 'arbol', 'matriz', 'pila', 'cola', 'punteros'."),
+    salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Guardar el diagrama en un archivo de texto."),
+    filas: int = typer.Option(3, "--filas", "-f", help="Filas para matrices o punteros."),
+    columnas: int = typer.Option(3, "--columnas", "-c", help="Columnas para matrices."),
+) -> None:
+    """Genera diagramas y esquemas ASCII de estructuras de datos para enunciados (QoL 14)."""
+    from deckard.core.ascii_diagrams import (
+        generar_diagrama_lista_enlazada,
+        generar_diagrama_lista_doble,
+        generar_diagrama_arbol_binario,
+        generar_diagrama_pila,
+        generar_diagrama_cola,
+        generar_diagrama_matriz,
+        generar_diagrama_punteros_dobles,
+    )
+
+    t = tipo.lower().strip().replace("-", "_")
+    if t in ("lista", "lista_simple", "linked_list"):
+        diag = generar_diagrama_lista_enlazada()
+    elif t in ("lista_doble", "doubly_linked_list"):
+        diag = generar_diagrama_lista_doble()
+    elif t in ("arbol", "tree", "bst"):
+        diag = generar_diagrama_arbol_binario()
+    elif t in ("pila", "stack"):
+        diag = generar_diagrama_pila()
+    elif t in ("cola", "queue"):
+        diag = generar_diagrama_cola()
+    elif t in ("matriz", "matrix"):
+        diag = generar_diagrama_matriz(filas=filas, columnas=columnas)
+    elif t in ("punteros", "punteros_dobles", "double_pointers"):
+        diag = generar_diagrama_punteros_dobles(filas=filas)
+    else:
+        diag = generar_diagrama_lista_enlazada()
+
+    if salida:
+        salida.parent.mkdir(parents=True, exist_ok=True)
+        salida.write_text(diag, encoding="utf-8")
+        console.print(f"[bold green]✓ Diagrama ASCII guardado en:[/bold green] [cyan]{salida}[/cyan]")
+    else:
+        print(diag)
+
+
+@app.command("export-hints")
+@app.command("hints")
+def cmd_export_hints(
+    ejercicio_id: str = typer.Argument(..., help="ID del ejercicio o ruta a ejercicio.yaml."),
+    salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Ruta de salida (por defecto stdout o PISTAS.md)."),
+    banco: Path = typer.Option(Path("banco"), "--banco", "-b", help="Directorio raíz del banco."),
+    ofuscar: bool = typer.Option(False, "--ofuscar", "--rot13", help="Ofuscar las pistas con ROT13 para prevenir spoilers."),
+    formato_c: bool = typer.Option(False, "--c-comments", "-c", help="Generar en formato de bloque de comentarios C."),
+    nivel_max: Optional[int] = typer.Option(None, "--nivel", "-n", help="Nivel máximo de pistas a exportar."),
+) -> None:
+    """Exporta o genera pistas escalonadas (Hints) progresivas para un ejercicio (QoL 15)."""
+    from deckard.core.bank import buscar_ejercicios, cargar_ejercicio
+    from deckard.core.hints import generar_archivo_pistas_md, formatear_pistas_comentarios_c
+
+    ej = None
+    obj_path = Path(ejercicio_id)
+    if obj_path.exists():
+        try:
+            ej = cargar_ejercicio(obj_path)
+        except Exception:
+            pass
+
+    if not ej:
+        matches = buscar_ejercicios(banco, patron=ejercicio_id, recursivo=True)
+        if matches:
+            ej = matches[0][1]
+
+    if not ej:
+        console.print(f"[bold red]No se encontró el ejercicio '{ejercicio_id}' en {banco}.[/bold red]")
+        raise typer.Exit(code=1)
+
+    if formato_c:
+        contenido = formatear_pistas_comentarios_c(ej.pistas, nivel_maximo=nivel_max, ofuscar=ofuscar)
+    else:
+        contenido = generar_archivo_pistas_md(ej, ofuscar=ofuscar)
+
+    if salida:
+        salida.parent.mkdir(parents=True, exist_ok=True)
+        salida.write_text(contenido, encoding="utf-8")
+        console.print(f"[bold green]✓ Pistas generadas en:[/bold green] [cyan]{salida}[/cyan]")
+    else:
+        print(contenido)
+
 
 
 

@@ -77,9 +77,13 @@
       #text(size: 12pt, weight: "bold", fill: rgb("2b6cb0"))[{{ loop.index }}. {{ item.ejercicio.titulo }}]
     ],
     align(right)[
+      {% if item.badges_typst %}
+      {{ item.badges_typst }}
+      {% else %}
       #box(fill: rgb("edf2f7"), inset: (x: 6pt, y: 3pt), radius: 3pt)[
         #text(size: 8pt, weight: "bold", fill: rgb("4a5568"))[Bloom {{ item.ejercicio.nivel_bloom }} | {{ item.ejercicio.minutos_estimados }} min]
       ]
+      {% endif %}
     ]
   )
 

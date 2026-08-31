@@ -30,20 +30,27 @@ class MovimientoEjercicio:
 # ---------------------------------------------------------------------------
 
 def cargar_ejercicio(dir_ejercicio: Path) -> Ejercicio:
-    """Lee `<dir>/ejercicio.yaml`, completando enunciado_md desde `enunciado.md` y solucion_c desde `solucion.c` si existen."""
-    meta = dir_ejercicio / ARCHIVO_EJERCICIO
+    """Lee `<dir>/ejercicio.yaml` o archivo directo, completando enunciado_md desde `enunciado.md` y solucion_c desde `solucion.c` si existen."""
+    p = Path(dir_ejercicio)
+    if p.is_file():
+        meta = p
+        dir_ej = p.parent
+    else:
+        meta = p / ARCHIVO_EJERCICIO
+        dir_ej = p
+
     if not meta.is_file():
         raise FileNotFoundError(f"No se encontró {ARCHIVO_EJERCICIO} en {dir_ejercicio}")
     with open(meta, "r", encoding="utf-8") as f:
         datos = yaml.safe_load(f) or {}
 
-    enunciado_archivo = dir_ejercicio / "enunciado.md"
+    enunciado_archivo = dir_ej / "enunciado.md"
     if enunciado_archivo.is_file():
         datos["enunciado_md"] = enunciado_archivo.read_text(encoding="utf-8")
     else:
         datos.setdefault("enunciado_md", "")
 
-    solucion_archivo = dir_ejercicio / "solucion.c"
+    solucion_archivo = dir_ej / "solucion.c"
     if solucion_archivo.is_file():
         datos["solucion_c"] = solucion_archivo.read_text(encoding="utf-8")
     else:
