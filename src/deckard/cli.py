@@ -3004,16 +3004,18 @@ def cmd_check_ambiguity(
     raise typer.Exit(code=1)
 
 
+@app.command("diagram")
 @app.command("ascii-diagram")
 @app.command("diagram-ascii")
-def cmd_ascii_diagram(
+def cmd_diagram(
     tipo: str = typer.Argument("lista", help="Tipo de estructura: 'lista', 'lista-doble', 'arbol', 'matriz', 'pila', 'cola', 'punteros'."),
-    salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Guardar el diagrama en un archivo de texto."),
+    salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Guardar el diagrama en un archivo."),
+    formato: str = typer.Option("ascii", "--formato", "-F", help="Formato del diagrama: 'ascii', 'mermaid', 'plantuml'."),
     filas: int = typer.Option(3, "--filas", "-f", help="Filas para matrices o punteros."),
     columnas: int = typer.Option(3, "--columnas", "-c", help="Columnas para matrices."),
 ) -> None:
-    """Genera diagramas y esquemas ASCII de estructuras de datos para enunciados (QoL 14)."""
-    from deckard.core.ascii_diagrams import (
+    """Genera diagramas y esquemas de estructuras de datos en formato ASCII, Mermaid o PlantUML para enunciados (QoL 14)."""
+    from deckard.core.diagrams import (
         generar_diagrama_lista_enlazada,
         generar_diagrama_lista_doble,
         generar_diagrama_arbol_binario,
@@ -3024,27 +3026,29 @@ def cmd_ascii_diagram(
     )
 
     t = tipo.lower().strip().replace("-", "_")
+    fmt = formato.lower().strip()
+
     if t in ("lista", "lista_simple", "linked_list"):
-        diag = generar_diagrama_lista_enlazada()
+        diag = generar_diagrama_lista_enlazada(formato=fmt)
     elif t in ("lista_doble", "doubly_linked_list"):
-        diag = generar_diagrama_lista_doble()
+        diag = generar_diagrama_lista_doble(formato=fmt)
     elif t in ("arbol", "tree", "bst"):
-        diag = generar_diagrama_arbol_binario()
+        diag = generar_diagrama_arbol_binario(formato=fmt)
     elif t in ("pila", "stack"):
-        diag = generar_diagrama_pila()
+        diag = generar_diagrama_pila(formato=fmt)
     elif t in ("cola", "queue"):
-        diag = generar_diagrama_cola()
+        diag = generar_diagrama_cola(formato=fmt)
     elif t in ("matriz", "matrix"):
-        diag = generar_diagrama_matriz(filas=filas, columnas=columnas)
+        diag = generar_diagrama_matriz(filas=filas, columnas=columnas, formato=fmt)
     elif t in ("punteros", "punteros_dobles", "double_pointers"):
-        diag = generar_diagrama_punteros_dobles(filas=filas)
+        diag = generar_diagrama_punteros_dobles(filas=filas, formato=fmt)
     else:
-        diag = generar_diagrama_lista_enlazada()
+        diag = generar_diagrama_lista_enlazada(formato=fmt)
 
     if salida:
         salida.parent.mkdir(parents=True, exist_ok=True)
         salida.write_text(diag, encoding="utf-8")
-        console.print(f"[bold green]✓ Diagrama ASCII guardado en:[/bold green] [cyan]{salida}[/cyan]")
+        console.print(f"[bold green]✓ Diagrama ({fmt}) guardado en:[/bold green] [cyan]{salida}[/cyan]")
     else:
         print(diag)
 

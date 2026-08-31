@@ -60,6 +60,17 @@ class CasoTestFuncion(BaseModel):
     postcondiciones: Optional[str] = None   # Aserción sobre efectos colaterales (ej: "vec[0] == 5")
 
 
+class DiagramaSpec(BaseModel):
+    """Diagrama o esquema de estructura de datos asociado al enunciado."""
+
+    model_config = ConfigDict(validate_assignment=True)
+
+    nombre: str = "Diagrama"
+    tipo: str = "lista"                     # lista, lista_doble, arbol, pila, cola, matriz, punteros_dobles
+    formato: str = "ascii"                  # ascii, mermaid, plantuml
+    contenido: Optional[str] = None         # Código o representación textual del diagrama
+
+
 class Ejercicio(BaseModel):
     """Un ejercicio práctico versionado como unidad atómica de cátedra."""
 
@@ -78,6 +89,7 @@ class Ejercicio(BaseModel):
     verificado: bool = False        # lo setea `deckard verify`
     funciones: List[FuncionSpec] = Field(default_factory=list)
     tests_funciones: List[CasoTestFuncion] = Field(default_factory=list)
+    diagramas: List[DiagramaSpec] = Field(default_factory=list, description="Diagramas de estructuras de datos (ascii, mermaid, plantuml).")
     tipo_entrega: str = Field(default="archivos_individuales", description="Tipo de entrega / modo de construcción: 'archivos_individuales', 'makefile', 'libreria', 'proyecto'")
     familia: Optional[str] = Field(default=None, description="Identificador de la familia o grupo de ejercicios relacionados (ej. 'tda_lista', 'lib_string').")
     rol_familia: Optional[str] = Field(default=None, description="Rol dentro de la familia: 'libreria' (TDA/módulo), 'tests' (pruebas unitarias), 'uso'/'app' (aplicación cliente).")
