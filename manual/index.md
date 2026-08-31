@@ -344,3 +344,12 @@ Podés encadenar `deckard` con otras herramientas del ecosistema en una única l
 deckard compose guias/tp1.yaml -o tp1.typ && deckard pack-zip guias/tp1.yaml -o starter_tp1.zip
 ````
 
+---
+
+(manual-deckard-seccion-plugins)=
+## 9. Extensión, Desarrollo de Plugins y API Python
+
+Para crear tus propias reglas, conectores de evaluación o integrar `deckard` programáticamente en pipelines de CI/CD:
+
+- 👉 **Consultá la guía completa:** [Guía de Extensión y Creación de Plugins](plugins.md)
+
