@@ -88,6 +88,17 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 * `deckard pack <objetivo>`: Empaqueta ejercicios/guías en archivos firmados `.ripkg` y genera starter repos para GitHub Classroom.
 * `deckard multiplex <spec>`: Generador de variantes combinatorias de TPs con asignación determinista por padrón/legajo.
 
+### 7. Curaduría y Mejora con OpenCode (`deckard improve` / `ai`)
+* `deckard improve clarity <id|banco|gift>`: Claridad y desambiguación con verbos operativos de Bloom.
+* `deckard improve edge-cases <id|banco|gift>`: Especificación exhaustiva de casos borde, pre y postcondiciones.
+* `deckard improve examples <id|banco|gift>`: Enriquecimiento con ejemplos de I/O y trazas de ejecución.
+* `deckard improve hints <id|banco|gift>`: Generación de pistas pedagógicas progresivas de 3 niveles.
+* `deckard improve bloom <id|banco|gift>`: Alineación estricta con la taxonomía de Bloom del ejercicio.
+* `deckard improve testcases <id|banco|gift>`: Casos de prueba exhaustivos (borde, típicos, error).
+* `deckard improve starter <id|banco|gift>`: Código esqueleto inicial (`starter_code`) y cabeceras Doxygen.
+* `deckard improve all <id|banco|gift>`: Mejora holística e integral de la consigna en una única pasada.
+  > Todos los subcomandos aceptan `--prompt` (`-p`), `--prompt-file` (`-P`), `--model` (`-m`), `--apply` (`-a`), `--diff` y `--show-prompt`.
+
 ---
 
 ## 📖 Documentación Detallada
