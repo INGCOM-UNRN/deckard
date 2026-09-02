@@ -9,6 +9,35 @@ Cada ejercicio vive en una carpeta aislada con metadata YAML (`tema`, nivel de *
 
 ---
 
+## 🎯 Alcance
+
+### Qué cubre
+- Autoría, catalogación y gestión de bancos de ejercicios prácticos de programación en C.
+- Clasificación pedagógica según la taxonomía de Bloom (Recordar, Comprender, Aplicar, Analizar, Evaluar, Crear).
+- Calibración y modelado de presupuestos de tiempo de resolución para estudiantes universitarios.
+- Serialización y sincronización bidireccional entre metadatos YAML (`ejercicio.yaml`) y documentos Markdown.
+- Composición de guías de trabajos prácticos estructuradas y balanceadas.
+
+### Qué no cubre (Límites y Delegación)
+- Compilación o ejecución de soluciones de alumnos (delegado a `daedalus` y `nostromo`).
+- Corrección masiva de cohortes y base de datos de calificaciones (delegado a `dredd`).
+- Generación de exámenes impresos OMR (delegado a `alucard`).
+
+---
+
+## 📋 Requisitos
+
+### Requisitos de Sistema y Entorno
+- Multiplataforma. Python >= 3.10.
+
+### Dependencias Externas y Binarios
+- Ninguno obligatorio.
+
+### Integración en el Ecosistema
+- CLI `deckard`. Soporte `deckard doctor`. Conexión directa con `dredd` para validación de entregas de guías.
+
+---
+
 ## ⚡ Instalación
 
 ```bash
