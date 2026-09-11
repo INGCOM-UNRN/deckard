@@ -119,6 +119,14 @@ class Ejercicio(BaseModel):
         return self.enunciado_md
 
     @property
+    def starter(self) -> str:
+        return self.starter_code
+
+    @property
+    def solucion(self) -> str:
+        return self.solucion_c
+
+    @property
     def tiene_funciones(self) -> bool:
         return bool(self.funciones or self.tests_funciones)
 
