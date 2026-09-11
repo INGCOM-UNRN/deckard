@@ -34,6 +34,58 @@ def buscar_ejecutable_opencode(usar_sandbox: bool = True) -> Tuple[Optional[str]
     return None, False
 
 
+def listar_modelos_opencode(provider: Optional[str] = None, timeout: int = 15) -> List[str]:
+    """Interroga al CLI de OpenCode para obtener la lista de modelos disponibles."""
+    # Para listar modelos usamos directamente el binario opencode
+    cand_direct = (
+        shutil.which("opencode")
+        or "/home/mrtin/.opencode/bin/opencode"
+        or os.path.expanduser("~/.opencode/bin/opencode")
+    )
+    if not (cand_direct and os.path.exists(cand_direct) and os.access(cand_direct, os.X_OK)):
+        ejecutable, _ = buscar_ejecutable_opencode(usar_sandbox=False)
+        cand_direct = ejecutable
+
+    if not cand_direct:
+        raise RuntimeError(
+            "No se encontró el ejecutable 'opencode' para consultar los modelos disponibles."
+        )
+
+    cmd = [cand_direct, "models"]
+    if provider:
+        cmd.append(provider)
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"La consulta de modelos a OpenCode excedió el tiempo límite de {timeout}s.") from e
+    except Exception as e:
+        raise RuntimeError(f"Error al consultar modelos de OpenCode: {e}") from e
+
+    if proc.returncode != 0:
+        err_msg = proc.stderr.strip() or proc.stdout.strip()
+        raise RuntimeError(f"OpenCode models finalizó con código {proc.returncode}: {err_msg}")
+
+    modelos = []
+    for line in proc.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # Ignorar mensajes informativos como 'Models cache refreshed'
+        if line.startswith("Models cache") or line.startswith("opencode models") or " " in line:
+            continue
+        modelos.append(line)
+
+    return modelos
+
+
 def ejecutar_opencode(
     prompt: str,
     modelo: str = DEFAULT_MODEL,

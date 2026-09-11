@@ -256,3 +256,47 @@ def test_cli_alias_ai_y_opencode(ejercicio_muestra):
     res_opencode = runner.invoke(app, ["opencode", "examples", str(dir_ej), "--show-prompt"])
     assert res_opencode.exit_code == 0
     assert "EXAMPLES" in res_opencode.stdout
+
+
+def test_cli_improve_models(monkeypatch):
+    def mock_listar(provider=None, timeout=15):
+        return [
+            "opencode-go/qwen3.8-max",
+            "opencode-go/deepseek-v4-pro",
+            "opencode-go/kimi-k3",
+        ]
+
+    monkeypatch.setattr("deckard.core.opencode.listar_modelos_opencode", mock_listar)
+
+    res = runner.invoke(app, ["improve", "models"])
+    assert res.exit_code == 0
+    assert "opencode-go/qwen3.8-max" in res.stdout
+    assert "deepseek-v4-pro" in res.stdout
+    assert "kimi-k3" in res.stdout
+
+    res_raw = runner.invoke(app, ["improve", "models", "--raw"])
+    assert res_raw.exit_code == 0
+    lineas = [line.strip() for line in res_raw.stdout.splitlines() if line.strip()]
+    assert lineas == ["opencode-go/qwen3.8-max", "opencode-go/deepseek-v4-pro", "opencode-go/kimi-k3"]
+
+
+def test_cli_improve_custom_model_flag(monkeypatch, ejercicio_muestra):
+    dir_ej, _ = ejercicio_muestra
+    capturado = {}
+
+    def mock_ejecutar(prompt, modelo="opencode-go/qwen3.8-max", **kwargs):
+        capturado["modelo"] = modelo
+        return """```markdown
+# Enunciado con Modelo Custom
+```"""
+
+    monkeypatch.setattr("deckard.core.improve.ejecutar_opencode", mock_ejecutar)
+
+    res = runner.invoke(app, [
+        "improve", "clarity", str(dir_ej),
+        "-m", "opencode-go/deepseek-v4-pro",
+        "--apply",
+    ])
+    assert res.exit_code == 0
+    assert capturado.get("modelo") == "opencode-go/deepseek-v4-pro"
+

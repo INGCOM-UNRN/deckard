@@ -126,7 +126,8 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 * `deckard improve testcases <id|banco|gift>`: Casos de prueba exhaustivos (borde, típicos, error).
 * `deckard improve starter <id|banco|gift>`: Código esqueleto inicial (`starter_code`) y cabeceras Doxygen.
 * `deckard improve all <id|banco|gift>`: Mejora holística e integral de la consigna en una única pasada.
-  > Todos los subcomandos aceptan `--prompt` (`-p`), `--prompt-file` (`-P`), `--model` (`-m`), `--apply` (`-a`), `--diff` y `--show-prompt`.
+* `deckard improve models [provider]`: Interroga a OpenCode por los modelos disponibles (`--raw` para lista plana).
+  > Todos los subcomandos de mejora aceptan selección de modelo con `-m` / `--model` (ej: `-m "opencode-go/deepseek-v4-pro"`), `--prompt` (`-p`), `--prompt-file` (`-P`), `--apply` (`-a`), `--diff` y `--show-prompt`.
 
 ---
 

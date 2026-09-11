@@ -3533,6 +3533,44 @@ def improve_all(
     )
 
 
+@improve_app.command("models")
+def improve_models(
+    provider: Optional[str] = typer.Argument(None, help="Proveedor opcional para filtrar modelos (ej: opencode-go)."),
+    raw: bool = typer.Option(False, "--raw", "-r", help="Imprimir únicamente la lista plana de identificadores de modelos."),
+) -> None:
+    """Interroga a OpenCode por los modelos de lenguaje disponibles para curaduría."""
+    from deckard.core.opencode import DEFAULT_MODEL, listar_modelos_opencode
+
+    try:
+        modelos = listar_modelos_opencode(provider=provider)
+    except Exception as e:
+        console.print(f"[bold red]Error al interrogar modelos de OpenCode:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+    if not modelos:
+        console.print("[yellow]No se obtuvieron modelos desde OpenCode.[/yellow]")
+        return
+
+    if raw:
+        for m in modelos:
+            print(m)
+        return
+
+    tabla = Table(title="🤖 Modelos Disponibles en OpenCode", border_style="cyan")
+    tabla.add_column("Identificador de Modelo", style="bold white")
+    tabla.add_column("Proveedor", style="cyan")
+    tabla.add_column("Por Defecto", justify="center")
+
+    for m in modelos:
+        prov = m.split("/")[0] if "/" in m else "local"
+        es_default = "[bold green]★ Sí[/bold green]" if m == DEFAULT_MODEL else "[dim]No[/dim]"
+        tabla.add_row(m, prov, es_default)
+
+    console.print(tabla)
+    console.print(f"\n[dim]Total: {len(modelos)} modelos disponibles. Modelo predeterminado: [bold cyan]{DEFAULT_MODEL}[/bold cyan][/dim]")
+    console.print("[dim]Uso: deckard improve <comando> [target] -m <modelo>[/dim]")
+
+
 app.add_typer(improve_app, name="improve")
 app.add_typer(improve_app, name="ai", hidden=True)
 app.add_typer(improve_app, name="opencode", hidden=True)
