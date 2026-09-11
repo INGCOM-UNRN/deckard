@@ -165,3 +165,59 @@ def build_dependency_graph(exercises: List[Tuple[Path, Ejercicio]]) -> Dependenc
                 graph.add_edge(top_prev.id, base_curr.id)
 
     return graph
+
+
+def ordenar_topologicamente(graph: DependencyGraph) -> List[str]:
+    """Retorna los IDs de ejercicios en orden topológico respetando prerrequisitos."""
+    in_degree = {node_id: len(node.prerequisites) for node_id, node in graph.nodes.items()}
+    queue = [node_id for node_id, deg in in_degree.items() if deg == 0]
+    result: List[str] = []
+
+    while queue:
+        queue.sort(key=lambda nid: (THEME_ORDER.get(graph.nodes[nid].tema.lower(), 99), graph.nodes[nid].bloom, nid))
+        curr = queue.pop(0)
+        result.append(curr)
+
+        for dep in graph.nodes[curr].dependents:
+            in_degree[dep] -= 1
+            if in_degree[dep] == 0:
+                queue.append(dep)
+
+    for node_id in graph.nodes:
+        if node_id not in result:
+            result.append(node_id)
+
+    return result
+
+
+def seleccionar_por_prerrequisitos(
+    exercises: List[Tuple[Path, Ejercicio]],
+    temas_conocidos: List[str],
+    max_bloom: Optional[int] = None,
+) -> List[Ejercicio]:
+    """Selecciona ejercicios cuyos prerrequisitos temáticos estén cubiertos por los temas conocidos."""
+    conocidos_set = {t.lower().strip() for t in temas_conocidos}
+    max_order_known = max([THEME_ORDER.get(t, -1) for t in conocidos_set], default=-1)
+
+    candidatos: List[Ejercicio] = []
+    for _, ej in exercises:
+        t = ej.tema.lower().strip()
+        t_order = THEME_ORDER.get(t, 99)
+
+        if max_order_known >= 0 and t_order > max_order_known + 1:
+            continue
+
+        if max_bloom and int(ej.bloom) > max_bloom:
+            continue
+
+        deps_ok = True
+        for dep in getattr(ej, "dependencias", []):
+            if dep.lower().strip() not in conocidos_set:
+                deps_ok = False
+                break
+
+        if deps_ok:
+            candidatos.append(ej)
+
+    return candidatos
+

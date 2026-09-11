@@ -184,6 +184,8 @@ def empaquetar_ejercicio(
     sign_key: Optional[str] = None,
     generar_starter: bool = False,
     starter_out_dir: Optional[Path] = None,
+    include_hidden: bool = True,
+    include_benchmarks: bool = True,
 ) -> ResultadoEmpaquetado:
     """Empaqueta un ejercicio individual como .ripkg compatible con Ripley."""
     if not dir_ejercicio.is_dir():
@@ -211,15 +213,26 @@ def empaquetar_ejercicio(
         payload[f"{ejercicio.id}.h"] = header_content
         payload["ejercicio.h"] = header_content
 
-    # 4. Testcases y recursos
+    # 4. Testcases y recursos (filtrando ocultos según parámetro)
     tests_dir = dir_ejercicio / "tests"
     if tests_dir.is_dir():
         for f in sorted(tests_dir.rglob("*")):
             if f.is_file():
+                rel_parts = f.relative_to(tests_dir).parts
+                if not include_hidden and ("hidden" in rel_parts or "ocultos" in rel_parts):
+                    continue
                 rel_name = str(f.relative_to(tests_dir))
                 payload[rel_name] = f.read_bytes()
 
-    # 5. Manifiesto y bundle .ripkg
+    # 5. Benchmarks de rendimiento si existen
+    benchmarks_dir = dir_ejercicio / "benchmarks"
+    if include_benchmarks and benchmarks_dir.is_dir():
+        for f in sorted(benchmarks_dir.rglob("*")):
+            if f.is_file():
+                rel_name = f"benchmarks/{f.relative_to(benchmarks_dir)}"
+                payload[rel_name] = f.read_bytes()
+
+    # 6. Manifiesto y bundle .ripkg
     manifest = build_manifest(
         practica_slug=ejercicio.id,
         enabled_check_ids=checks,
@@ -228,6 +241,8 @@ def empaquetar_ejercicio(
         payload_files=payload,
         tipo_entrega=ejercicio.tipo_entrega,
     )
+    if not include_hidden:
+        manifest["meta"]["stripped_hidden"] = True
 
     destino = out_path or (dir_ejercicio.parent / f"{ejercicio.id}.ripkg")
     write_bundle(destino, manifest, payload, sign_key=sign_key)
@@ -433,7 +448,10 @@ def desempaquetar_bundle_deckard(tar_path: Path, destino_dir: Path) -> Path:
     dest.mkdir(parents=True, exist_ok=True)
 
     with tarfile.open(src, "r:*") as tar:
-        tar.extractall(path=dest)
+        if hasattr(tarfile, "data_filter"):
+            tar.extractall(path=dest, filter="data")
+        else:
+            tar.extractall(path=dest)
 
     return dest
 

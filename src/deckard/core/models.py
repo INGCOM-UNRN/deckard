@@ -89,6 +89,11 @@ class Ejercicio(BaseModel):
     verificado: bool = False        # lo setea `deckard verify`
     funciones: List[FuncionSpec] = Field(default_factory=list)
     tests_funciones: List[CasoTestFuncion] = Field(default_factory=list)
+    tests_ocultos: List[CasoTestFuncion] = Field(default_factory=list, description="Casos de prueba ocultos para autograding ciego.")
+    benchmarks: Dict[str, str] = Field(default_factory=dict, description="Límites o benchmarks de rendimiento de tiempo y memoria.")
+    rubrica: Optional[Dict[str, float]] = Field(default=None, description="Ponderación porcentual de criterios de evaluación.")
+    acsl_contratos: List[str] = Field(default_factory=list, description="Especificaciones formales ACSL.")
+    archivos_prueba: Dict[str, str] = Field(default_factory=dict, description="Archivos de prueba requeridos (ej. binarios, csv, stdin/stdout fixtures).")
     diagramas: List[DiagramaSpec] = Field(default_factory=list, description="Diagramas de estructuras de datos (ascii, mermaid, plantuml).")
     tipo_entrega: str = Field(default="archivos_individuales", description="Tipo de entrega / modo de construcción: 'archivos_individuales', 'makefile', 'libreria', 'proyecto'")
     familia: Optional[str] = Field(default=None, description="Identificador de la familia o grupo de ejercicios relacionados (ej. 'tda_lista', 'lib_string').")
@@ -225,6 +230,16 @@ class Ejercicio(BaseModel):
             datos.pop("funciones", None)
         if not self.tests_funciones:
             datos.pop("tests_funciones", None)
+        if not self.tests_ocultos:
+            datos.pop("tests_ocultos", None)
+        if not self.benchmarks:
+            datos.pop("benchmarks", None)
+        if not self.rubrica:
+            datos.pop("rubrica", None)
+        if not self.acsl_contratos:
+            datos.pop("acsl_contratos", None)
+        if not self.archivos_prueba:
+            datos.pop("archivos_prueba", None)
         return datos
 
 
