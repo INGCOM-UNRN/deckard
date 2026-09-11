@@ -4044,4 +4044,100 @@ def cmd_check_tone(
     console.print(tabla)
 
 
+@app.command("checklist")
+def cmd_checklist(
+    target: str = typer.Argument(..., help="ID de ejercicio o ruta a guía YAML."),
+    salida: Optional[Path] = typer.Option(None, "--salida", "-o", help="Ruta de archivo Markdown de salida."),
+    banco: Path = typer.Option(Path("banco"), "--banco", "-b", help="Directorio raíz del banco."),
+) -> None:
+    """Genera listas de autoevaluación previas a la entrega en formato Markdown."""
+    from deckard.core.checklist import generar_checklist_guia
+
+    ejercicios = _cargar_ejercicios_target(target, banco)
+    md_text = generar_checklist_guia(ejercicios, ruta_salida=salida)
+    if salida:
+        console.print(f"[bold green]✓ Checklist Markdown guardada en:[/bold green] [cyan]{salida}[/cyan]")
+    else:
+        console.print(Markdown(md_text))
+
+
+@app.command("check-signatures")
+def cmd_check_signatures(
+    target: str = typer.Argument(..., help="ID de ejercicio, guía YAML o directorio del banco."),
+    banco: Path = typer.Option(Path("banco"), "--banco", "-b", help="Directorio raíz del banco."),
+) -> None:
+    """Valida la consistencia de firmas de función entre el enunciado y la solución canónica."""
+    from deckard.core.signature_checker import auditar_firmas_banco
+
+    ejercicios = _cargar_ejercicios_target(target, banco)
+    res = auditar_firmas_banco(ejercicios)
+
+    if not res["por_ejercicio"]:
+        console.print("[bold green]✓ Firmas consistentes: las funciones declaradas coinciden con la solución.[/bold green]")
+        return
+
+    tabla = Table(title=f"Discrepancias de Firmas ({res['ejercicios_con_discrepancias']}/{res['total_ejercicios']} observados)")
+    tabla.add_column("Ejercicio", style="bold cyan")
+    tabla.add_column("Función", style="bold")
+    tabla.add_column("Tipo", style="yellow")
+    tabla.add_column("Declarada", style="green")
+    tabla.add_column("Encontrada", style="red")
+    tabla.add_column("Detalle")
+
+    for ej_id, lista in res["por_ejercicio"].items():
+        for d in lista:
+            tabla.add_row(ej_id, d["nombre_funcion"], d["tipo"], d["declarada"], d["encontrada"], d["detalle"])
+
+    console.print(tabla)
+
+
+@app.command("license-manager")
+def cmd_license_manager(
+    ejercicio_id: str = typer.Argument(..., help="ID del ejercicio."),
+    autor: Optional[str] = typer.Option(None, "--autor", "-a", help="Nombre del autor o equipo docente."),
+    licencia: str = typer.Option("CC-BY-SA-4.0", "--licencia", "-l", help="Identificador de licencia (CC-BY-SA-4.0, MIT, etc.)."),
+    anio: int = typer.Option(2026, "--anio", help="Año de autoría."),
+    aplicar: bool = typer.Option(False, "--aplicar", help="Inyectar y persistir los metadatos en archivos."),
+    banco: Path = typer.Option(Path("banco"), "--banco", "-b", help="Directorio raíz del banco."),
+) -> None:
+    """Gestiona metadatos de autoría, licencias educativas y headers de copyright."""
+    from deckard.core.license_manager import inyectar_creditos_ejercicio, obtener_creditos_ejercicio
+
+    dir_ej = _resolver_dir_ejercicio(ejercicio_id, banco)
+    ej = cargar_ejercicio(dir_ej)
+
+    if aplicar and autor:
+        meta = inyectar_creditos_ejercicio(ej, dir_ej, autor=autor, licencia=licencia, anio=anio)
+        console.print(f"[bold green]✓ Metadatos de licencia aplicados a:[/bold green] [cyan]{dir_ej}[/cyan]")
+    else:
+        meta = obtener_creditos_ejercicio(ej, dir_ejercicio=dir_ej)
+        tabla = Table(title=f"Créditos de Autoría [{ej.id}]")
+        tabla.add_column("Campo", style="bold")
+        tabla.add_column("Valor", style="cyan")
+        tabla.add_row("Autor", meta.autor)
+        tabla.add_row("Licencia", meta.licencia)
+        tabla.add_row("Año", str(meta.anio))
+        tabla.add_row("Institución", meta.institucion)
+        console.print(tabla)
+
+
+@app.command("failure-hints")
+def cmd_failure_hints(
+    codigo_o_error: str = typer.Argument(..., help="Código de falla, señal o assert (ej: SIGSEGV, SIGABRT, ASSERT_EQ)."),
+) -> None:
+    """Brinda orientación pedagógica y preguntas guía ante fallas en tests o ejecución."""
+    from deckard.core.failure_hints import obtener_pista_falla
+
+    pista = obtener_pista_falla(codigo_o_error)
+    panel_content = (
+        f"[bold cyan]Concepto Clave:[/bold cyan] {pista.concepto_clave}\n\n"
+        f"[white]{pista.explicacion_didactica}[/white]\n\n"
+        f"[bold yellow]Preguntas Guía para Reflexionar:[/bold yellow]\n"
+        + "\n".join(f"  • {q}" for q in pista.preguntas_guia)
+        + f"\n\n[bold green]Acción Sugerida:[/bold green] {pista.sugerencia_accion}"
+    )
+    console.print(Panel(panel_content, title=f"Pista Pedagógica: {pista.codigo_falla}", border_style="cyan"))
+
+
+
 
