@@ -138,6 +138,23 @@ def _compilar_con_daedalus(src_file: Path, bin_file: Path) -> Optional[Tuple[boo
         return None
 
 
+def _try_import_nostromo():
+    try:
+        from nostromo.core.sandbox import ejecutar_aislado
+        return ejecutar_aislado
+    except ImportError:
+        import sys
+        sibling = Path(__file__).resolve().parents[4] / "nostromo" / "src"
+        if sibling.is_dir() and str(sibling) not in sys.path:
+            sys.path.insert(0, str(sibling))
+            try:
+                from nostromo.core.sandbox import ejecutar_aislado
+                return ejecutar_aislado
+            except ImportError:
+                return None
+        return None
+
+
 def ejecutar_tests_funciones(
     ejercicio: Ejercicio,
     dir_ejercicio: Optional[Path] = None,
@@ -224,8 +241,23 @@ def ejecutar_tests_funciones(
                 )
 
         # 2. Ejecutar binario
+        stdout_run = ""
+        stderr_run = ""
+        retcode_run = 0
         try:
-            proc_run = subprocess.run([str(bin_file)], capture_output=True, text=True, timeout=timeout)
+            nostromo_fn = _try_import_nostromo()
+            if nostromo_fn:
+                res_aislado = nostromo_fn(bin_file, timeout_segundos=float(timeout), memoria_mb=64)
+                retcode_run = res_aislado.codigo_retorno
+                stdout_run = res_aislado.stdout
+                stderr_run = res_aislado.stderr
+                if res_aislado.error_tipo == "TIMEOUT":
+                    raise subprocess.TimeoutExpired(cmd=[str(bin_file)], timeout=timeout)
+            else:
+                proc_run = subprocess.run([str(bin_file)], capture_output=True, text=True, timeout=timeout)
+                retcode_run = proc_run.returncode
+                stdout_run = proc_run.stdout
+                stderr_run = proc_run.stderr
         except subprocess.TimeoutExpired:
             return ResultadoTestsFunciones(
                 ok=False,
@@ -241,7 +273,7 @@ def ejecutar_tests_funciones(
         exitosos = 0
         fallidos = 0
 
-        for line in proc_run.stdout.splitlines():
+        for line in stdout_run.splitlines():
             line = line.strip()
             if line.startswith("[TEST_OK]"):
                 parts = line.split("|")
@@ -261,15 +293,15 @@ def ejecutar_tests_funciones(
         if total == 0:
             total = exitosos + fallidos
 
-        if proc_run.returncode != 0 and fallidos == 0 and exitosos == 0:
+        if retcode_run != 0 and fallidos == 0 and exitosos == 0:
             # Fallo general (ej. abort por assert)
             fallidos = total
-            detalle = f"Fallo en ejecución (código {proc_run.returncode}): {proc_run.stderr.strip() or 'Abort'}"
+            detalle = f"Fallo en ejecución (código {retcode_run}): {stderr_run.strip() or 'Abort'}"
         else:
             detalle = f"{exitosos}/{total} tests de función aprobados"
 
         return ResultadoTestsFunciones(
-            ok=(proc_run.returncode == 0 and fallidos == 0 and exitosos == total),
+            ok=(retcode_run == 0 and fallidos == 0 and exitosos == total),
             total=total,
             exitosos=exitosos,
             fallidos=fallidos,
