@@ -7,9 +7,27 @@ name = "deckard"
 version = "0.1.0"
 description = "Gestor de bancos de ejercicios prácticos, guías y graduación para cátedras de C."
 readme = "README.md"
+license = {text = "GPL-3.0-or-later"}
+authors = [
+    {name = "Martín René Vilugrón", email = "martinvilu@gmail.com"}
+]
+maintainers = [
+    {name = "Programación I [B6003] - UNRN Andina"}
+]
 requires-python = ">=3.11"
-license = {text = "MIT"}
-authors = [{name = "Cátedra Programación 1 - UNRN"}]
+keywords = ["education", "c-programming", "pedagogical-tools", "unrn"]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Education",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
 dependencies = [
     "typer>=0.12.0",
     "rich>=13.7.0",
@@ -19,6 +37,11 @@ dependencies = [
     "markdown>=3.5.0",
     "weasyprint>=60.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/INGCOM-UNRN-P1/deckard"
+Repository = "https://github.com/INGCOM-UNRN-P1/deckard.git"
+Issues = "https://github.com/INGCOM-UNRN-P1/deckard/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
