@@ -26,6 +26,25 @@ class ResultadoSanitizer:
         return "✓" if self.ok else "✗"
 
 
+def _compilar_con_daedalus(archivos: list[Path], binario: Path, extra_flags: list[str]) -> Optional[tuple[bool, str]]:
+    try:
+        from daedalus.core.compiler import compilar_archivos
+        res = compilar_archivos(archivos, binario_salida=binario, flags_adicionales=extra_flags)
+        return res.exito, res.stderr_crudo
+    except ImportError:
+        import sys
+        sibling = Path(__file__).resolve().parents[4] / "daedalus" / "src"
+        if sibling.is_dir() and str(sibling) not in sys.path:
+            sys.path.insert(0, str(sibling))
+            try:
+                from daedalus.core.compiler import compilar_archivos
+                res = compilar_archivos(archivos, binario_salida=binario, flags_adicionales=extra_flags)
+                return res.exito, res.stderr_crudo
+            except ImportError:
+                return None
+        return None
+
+
 def auditar_solucion_sanitizers(
     dir_ejercicio: Path,
     ej: Optional[Ejercicio] = None,
@@ -115,54 +134,81 @@ def auditar_solucion_sanitizers(
             archivos_compilar.append(str(harness_c))
 
         binario = tmp_path / "bin_asan"
-        cmd_comp = [
-            gcc,
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-            "-fsanitize=address,undefined",
-            "-fno-omit-frame-pointer",
-            "-g",
-            "-O1",
-            *archivos_compilar,
-            "-o",
-            str(binario),
-            "-lm",
-        ]
+        archivos_c_paths = [Path(p) for p in archivos_compilar]
+        daed_res = _compilar_con_daedalus(
+            archivos_c_paths,
+            binario,
+            ["-fsanitize=address,undefined", "-fno-omit-frame-pointer", "-g", "-O1"]
+        )
 
-        proc_comp = subprocess.run(cmd_comp, capture_output=True, text=True)
         usa_asan = True
-        if proc_comp.returncode != 0:
-            if "cannot find" in proc_comp.stderr and ("libasan" in proc_comp.stderr or "libubsan" in proc_comp.stderr):
-                # Fallback sin sanitizers dinamicos
-                usa_asan = False
-                cmd_comp_fb = [
-                    gcc,
-                    "-std=c11",
-                    "-Wall",
-                    "-Wextra",
-                    "-g",
-                    "-O1",
-                    *archivos_compilar,
-                    "-o",
-                    str(binario),
-                    "-lm",
-                ]
-                proc_comp_fb = subprocess.run(cmd_comp_fb, capture_output=True, text=True)
-                if proc_comp_fb.returncode != 0:
+        if daed_res is not None:
+            ok, stderr = daed_res
+            if not ok:
+                if "cannot find" in stderr and ("libasan" in stderr or "libubsan" in stderr):
+                    usa_asan = False
+                    daed_fb = _compilar_con_daedalus(archivos_c_paths, binario, ["-g", "-O1"])
+                    if daed_fb is not None and not daed_fb[0]:
+                        return ResultadoSanitizer(
+                            ejercicio=ej.id,
+                            ok=False,
+                            error_compilacion=True,
+                            detalle=f"Error de compilación: {daed_fb[1][:200]}",
+                        )
+                else:
                     return ResultadoSanitizer(
                         ejercicio=ej.id,
                         ok=False,
                         error_compilacion=True,
-                        detalle=f"Error de compilación: {proc_comp_fb.stderr[:200]}",
+                        detalle=f"Error de compilación con sanitizers: {stderr[:200]}",
                     )
-            else:
-                return ResultadoSanitizer(
-                    ejercicio=ej.id,
-                    ok=False,
-                    error_compilacion=True,
-                    detalle=f"Error de compilación ASan: {proc_comp.stderr[:200]}",
-                )
+        else:
+            cmd_comp = [
+                gcc,
+                "-std=c11",
+                "-Wall",
+                "-Wextra",
+                "-fsanitize=address,undefined",
+                "-fno-omit-frame-pointer",
+                "-g",
+                "-O1",
+                *archivos_compilar,
+                "-o",
+                str(binario),
+                "-lm",
+            ]
+            proc_comp = subprocess.run(cmd_comp, capture_output=True, text=True)
+            if proc_comp.returncode != 0:
+                if "cannot find" in proc_comp.stderr and ("libasan" in proc_comp.stderr or "libubsan" in proc_comp.stderr):
+                    # Fallback sin sanitizers dinamicos
+                    usa_asan = False
+                    cmd_comp_fb = [
+                        gcc,
+                        "-std=c11",
+                        "-Wall",
+                        "-Wextra",
+                        "-g",
+                        "-O1",
+                        *archivos_compilar,
+                        "-o",
+                        str(binario),
+                        "-lm",
+                    ]
+                    proc_comp_fb = subprocess.run(cmd_comp_fb, capture_output=True, text=True)
+                    if proc_comp_fb.returncode != 0:
+                        return ResultadoSanitizer(
+                            ejercicio=ej.id,
+                            ok=False,
+                            error_compilacion=True,
+                            detalle=f"Error de compilación: {proc_comp_fb.stderr[:200]}",
+                        )
+                else:
+                    return ResultadoSanitizer(
+                        ejercicio=ej.id,
+                        ok=False,
+                        error_compilacion=True,
+                        detalle=f"Error de compilación con sanitizers: {proc_comp.stderr[:200]}",
+                    )
 
         # Ejecutar binario
         # Si hay archivos de entrada en tests/*.in, ejecutar con el primer caso

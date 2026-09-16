@@ -119,6 +119,25 @@ def generar_codigo_harness_c(ejercicio: Ejercicio, solucion_c: str) -> str:
     return "\n".join(lineas)
 
 
+def _compilar_con_daedalus(src_file: Path, bin_file: Path) -> Optional[Tuple[bool, str]]:
+    try:
+        from daedalus.core.compiler import compilar_archivos
+        res = compilar_archivos([src_file], binario_salida=bin_file)
+        return res.exito, res.stderr_crudo
+    except ImportError:
+        import sys
+        sibling = Path(__file__).resolve().parents[4] / "daedalus" / "src"
+        if sibling.is_dir() and str(sibling) not in sys.path:
+            sys.path.insert(0, str(sibling))
+            try:
+                from daedalus.core.compiler import compilar_archivos
+                res = compilar_archivos([src_file], binario_salida=bin_file)
+                return res.exito, res.stderr_crudo
+            except ImportError:
+                return None
+        return None
+
+
 def ejecutar_tests_funciones(
     ejercicio: Ejercicio,
     dir_ejercicio: Optional[Path] = None,
@@ -167,28 +186,42 @@ def ejecutar_tests_funciones(
         bin_file = Path(td) / "harness_bin"
         src_file.write_text(codigo_harness, encoding="utf-8")
 
-        # 1. Compilar con GCC
-        cmd_compile = [
-            compiler,
-            "-Wall",
-            "-Wextra",
-            "-std=c11",
-            str(src_file),
-            "-o",
-            str(bin_file),
-            "-lm",
-        ]
-        proc_comp = subprocess.run(cmd_compile, capture_output=True, text=True)
-        if proc_comp.returncode != 0:
-            err_line = next((l for l in proc_comp.stderr.splitlines() if "error:" in l or "fatal error:" in l), proc_comp.stderr[:160])
-            return ResultadoTestsFunciones(
-                ok=False,
-                total=len(ejercicio.tests_funciones),
-                exitosos=0,
-                fallidos=len(ejercicio.tests_funciones),
-                detalle=f"Error de compilación en tests de funciones: {err_line.strip()}",
-                casos=[],
-            )
+        # 1. Compilar delegando en Daedalus con fallback a GCC
+        daed_res = _compilar_con_daedalus(src_file, bin_file)
+        if daed_res is not None:
+            comp_ok, comp_err = daed_res
+            if not comp_ok:
+                err_line = next((l for l in comp_err.splitlines() if "error:" in l or "fatal error:" in l), comp_err[:160])
+                return ResultadoTestsFunciones(
+                    ok=False,
+                    total=len(ejercicio.tests_funciones),
+                    exitosos=0,
+                    fallidos=len(ejercicio.tests_funciones),
+                    detalle=f"Error de compilación en tests de funciones: {err_line.strip()}",
+                    casos=[],
+                )
+        else:
+            cmd_compile = [
+                compiler,
+                "-Wall",
+                "-Wextra",
+                "-std=c11",
+                str(src_file),
+                "-o",
+                str(bin_file),
+                "-lm",
+            ]
+            proc_comp = subprocess.run(cmd_compile, capture_output=True, text=True)
+            if proc_comp.returncode != 0:
+                err_line = next((l for l in proc_comp.stderr.splitlines() if "error:" in l or "fatal error:" in l), proc_comp.stderr[:160])
+                return ResultadoTestsFunciones(
+                    ok=False,
+                    total=len(ejercicio.tests_funciones),
+                    exitosos=0,
+                    fallidos=len(ejercicio.tests_funciones),
+                    detalle=f"Error de compilación en tests de funciones: {err_line.strip()}",
+                    casos=[],
+                )
 
         # 2. Ejecutar binario
         try:
