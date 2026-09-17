@@ -210,3 +210,45 @@ def test_cli_verify_all_batch(banco):
         assert res.exit_code == 0
         assert "Verificando 5 ejercicios" in res.stdout
         assert "5/5 exitosos" in res.stdout
+
+
+def test_cli_version():
+    import json
+    res = runner.invoke(app, ["--version"])
+    assert res.exit_code == 0
+    assert "deckard 0.1.0" in res.stdout
+
+    res_v = runner.invoke(app, ["-v"])
+    assert res_v.exit_code == 0
+    assert "deckard 0.1.0" in res_v.stdout
+
+
+def test_cli_json_outputs(banco):
+    import json
+
+    # bank list --json
+    res_bank = runner.invoke(app, ["bank", "list", "--banco", str(banco), "--json"])
+    assert res_bank.exit_code == 0
+    data_bank = json.loads(res_bank.stdout)
+    assert data_bank["total"] == 5
+    assert "ejercicios" in data_bank
+
+    # stats --json
+    res_stats = runner.invoke(app, ["stats", "--banco", str(banco), "--json"])
+    assert res_stats.exit_code == 0
+    data_stats = json.loads(res_stats.stdout)
+    assert data_stats["total_ejercicios"] == 5
+    assert "distribucion_bloom" in data_stats
+
+    # verify --all --json
+    with patch("deckard.cli.verificar_ejercicio") as mock_verify:
+        from deckard.core.verify import ResultadoVerify
+        mock_verify.return_value = ResultadoVerify("ej", True, "OK")
+
+        res_verif = runner.invoke(app, ["verify", "--all", "--banco", str(banco), "--json"])
+        assert res_verif.exit_code == 0
+        data_verif = json.loads(res_verif.stdout)
+        assert data_verif["total"] == 5
+        assert data_verif["exitosos"] == 5
+        assert data_verif["fallidos"] == 0
+

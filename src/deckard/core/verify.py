@@ -7,10 +7,13 @@ resultado al estado del banco (verificado / fallido).
 
 from __future__ import annotations
 
+import json
+import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 
 @dataclass
@@ -60,28 +63,36 @@ def verificar_ejercicio(
 
     # 2. Verificación estática / dinámica con Ripley (para ejercicios con main() o tests I/O)
     ripley = ruta_ripley or shutil.which("ripley")
-    if ripley is None:
-        candidato = Path(__file__).resolve()
-        for padre in [candidato] + list(candidato.parents):
-            pyz = padre / "bin" / "ripley.pyz"
-            if pyz.is_file():
-                ripley = f"{shutil.which('python3') or 'python3'} {pyz}"
-                break
 
     if not ripley:
         if detalle_fn:
             return ResultadoVerify(dir_ejercicio.name, True, detalle_fn)
-        return ResultadoVerify(dir_ejercicio.name, False, "ripley no está disponible (PATH ni bin/ripley.pyz)")
+        return ResultadoVerify(dir_ejercicio.name, False, "ripley no está disponible en PATH")
 
-    cmd = f"{ripley} check {dir_ejercicio}"
+    if isinstance(ripley, str):
+        cmd = shlex.split(ripley) + ["check", str(dir_ejercicio), "--format", "json"]
+    else:
+        cmd = [str(ripley), "check", str(dir_ejercicio), "--format", "json"]
+
     try:
-        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         return ResultadoVerify(dir_ejercicio.name, False, "timeout de ripley")
 
-    salida = proc.stdout + proc.stderr
-    ok = proc.returncode == 0 and "Fallo" not in salida and "✗" not in salida.splitlines()[-1]
-    resumen = next((l for l in reversed(salida.strip().splitlines()) if l.strip()), "")
+    ok = False
+    resumen = ""
+    try:
+        data = json.loads(proc.stdout)
+        if isinstance(data, dict):
+            errores = data.get("errors") or data.get("fallos") or []
+            ok = (proc.returncode == 0) and not errores and data.get("ok", True)
+            resumen = data.get("summary") or data.get("resumen") or ("✓ OK" if ok else "✗ Fallo en verificación")
+    except Exception:
+        salida = (proc.stdout + proc.stderr).strip()
+        lineas = [l for l in salida.splitlines() if l.strip()]
+        ultimo = lineas[-1] if lineas else ""
+        ok = (proc.returncode == 0) and ("Fallo" not in salida) and ("✗" not in ultimo)
+        resumen = ultimo if lineas else ("✓ OK" if ok else "✗ Fallo")
 
     if detalle_fn:
         resumen_final = f"{detalle_fn} · {resumen[:100]}"

@@ -10,12 +10,16 @@ from rich.console import Console
 from rich.table import Table
 
 
+from pathlib import Path
+
+
 def chequear_herramienta(comando: str, args_version: str = "--version") -> Dict[str, Any]:
     """Verifica si un comando está disponible en $PATH y obtiene su versión."""
     path = shutil.which(comando)
     if not path:
         return {"disponible": False, "version": None, "ruta": None}
     
+    version = "Instalado"
     try:
         res = subprocess.run(
             [comando, args_version],
@@ -24,7 +28,28 @@ def chequear_herramienta(comando: str, args_version: str = "--version") -> Dict[
             timeout=3,
         )
         salida = (res.stdout or res.stderr).strip().splitlines()
-        version = salida[0] if salida else "Desconocida"
+        if res.returncode == 0 and salida and not salida[0].startswith("Usage:"):
+            version = salida[0]
+        else:
+            # Si el comando es un script de Python con shebang, intentar leer __version__
+            try:
+                p = Path(path)
+                lineas = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+                if lineas and lineas[0].startswith("#!"):
+                    shebang_py = lineas[0].lstrip("#!").strip()
+                    if shutil.which(shebang_py):
+                        proc_ver = subprocess.run(
+                            [shebang_py, "-c", f"import {comando}; print(getattr({comando}, '__version__', 'Instalado'))"],
+                            capture_output=True,
+                            text=True,
+                            timeout=2,
+                        )
+                        if proc_ver.returncode == 0 and proc_ver.stdout.strip():
+                            version = proc_ver.stdout.strip()
+            except Exception:
+                pass
+            if version == "Instalado" and salida and not salida[0].startswith("Usage:"):
+                version = salida[0]
     except Exception:
         version = "Detectada"
         

@@ -28,13 +28,18 @@ Cada ejercicio vive en una carpeta aislada con metadata YAML (`tema`, nivel de *
 ## 📋 Requisitos
 
 ### Requisitos de Sistema y Entorno
-- Multiplataforma. Python >= 3.10.
+- Multiplataforma. Python >= 3.11.
 
 ### Dependencias Externas y Binarios
-- Ninguno obligatorio.
+- **gcc** (o **daedalus**): Requerido para verificación y compilación de soluciones modelo en C (`deckard verify`, `lint`).
+- **ripley**: Requerido para verificación estática/dinámica de reglas de cátedra y tests I/O (`deckard verify`).
+- **typst**: Motor prioritario y recomendado para generación de PDFs de alta fidelidad (`deckard export`). *WeasyPrint se mantiene como fallback legacy.*
+- **vasquez**: Motor de inyección de fallos para arneses de resiliencia (`deckard verify test-harness`).
+- **dredd**: Orquestador y generador de testcases por fuzzing (`deckard verify fuzz`).
 
 ### Integración en el Ecosistema
-- CLI `deckard`. Soporte `deckard doctor`. Conexión directa con `dredd` para validación de entregas de guías.
+- CLI `deckard` con soporte `--version` y `--json` en flujos de inspección y automatización.
+- Diagnóstico del entorno mediante `deckard doctor`. Conexión directa con `ripley`, `dredd` y `vasquez`.
 
 ---
 
@@ -54,24 +59,24 @@ uv run deckard --help
 ## 🚀 Inicio Rápido
 
 ```bash
-# 1. Inicializar la estructura del banco y guías
+# 1. Inicializar la estructura del banco y guías (crea banco/ejemplo-invertir)
 deckard init
 
 # 2. Crear un nuevo ejercicio
 deckard new invertir-pares --titulo "Invertir pares" --tema arreglos --bloom 3 --minutos 25
 
-# 3. Inspeccionar el banco y enunciados
+# 3. Inspeccionar el banco y enunciados (soporta --json)
 deckard bank list
 deckard show invertir-pares -s -p
 
-# 4. Verificar la solución modelo con Ripley
+# 4. Verificar la solución modelo con Ripley (soporta --json)
 deckard verify invertir-pares
 
 # 5. Crear una especificación y componer una guía balanceada
 deckard spec new parcial1.yaml --duracion 90 --margen 0.8 --temas "arreglos,punteros" --bloom-min 2 --bloom-max 4
 deckard spec compose parcial1.yaml
 
-# 6. Exportar la guía a PDF y Markdown
+# 6. Exportar la guía a PDF (Typst) y Markdown
 deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 ```
 
@@ -80,10 +85,13 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 ## 🧭 Mapa de Comandos de Deckard
 
 ### 1. Banco y Enunciados
-* `deckard init`: Inicializa la estructura `banco/`, `guias/` y un ejercicio de ejemplo.
+* `deckard init`: Inicializa la estructura `banco/`, `guias/` y un ejercicio de ejemplo (`ejemplo-invertir`).
 * `deckard new <id>`: Crea un nuevo ejercicio con esqueleto completo (`ejercicio.yaml`, `solucion.c`, `enunciado.md`, `tests/`).
-* `deckard bank list`: Catálogo tabular del banco con filtros por tema, nivel de Bloom y estado de verificación.
+* `deckard bank list`: Catálogo tabular del banco con filtros por tema, nivel de Bloom, estado de verificación y salida `--json`.
 * `deckard show <id>`: Inspección en consola de enunciados, soluciones, pistas progresivas, tests y metadata (`-s`, `-p`, `--tests`, `--todos`, `--raw`).
+* `deckard browse`: Navegador interactivo de ejercicios en consola.
+* `deckard sync`: Sincronización bidireccional entre `ejercicio.yaml` y documentos Markdown.
+* `deckard cache`: Inspección y actualización de la caché del banco de ejercicios.
 
 ### 2. Especificaciones Pedagógicas (`deckard spec`)
 * `deckard spec new <archivo>`: Crea especificaciones de diseño curricular (`GuiaSpec`).
@@ -103,21 +111,30 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 * `deckard guide export <guia>`: Exporta la guía completa a PDF, Markdown o HTML.
 
 ### 4. Exportación Multiformato (`deckard export`)
-* `deckard export <objetivo>`: Exporta ejercicios o guías a **PDF**, **Markdown** o **HTML** (`--type=pdf,md,html`).
-* `deckard export templates init`: Copia plantillas por defecto (HTML, Markdown y `estilos.css`) a `./templates/` o global (`--global`).
+* `deckard export <objetivo>`: Exporta ejercicios o guías a **PDF** (vía Typst oficial o WeasyPrint legacy), **Typst**, **Markdown** o **HTML** (`--type=pdf,md,html,typ` y `--json`).
+* `deckard export templates init`: Copia plantillas por defecto (Typst, HTML, Markdown y CSS) a `./templates/` o global (`--global`).
 * `deckard export templates list`: Lista plantillas descubiertas (locales, globales y built-in).
 
 ### 5. Verificación, Fuzzing y Arnés (`deckard verify`)
-* `deckard verify [id]`: Verificación de reglas pedagógicas y compilación con `ripley check`. Admite comodines, `--all`, barra de progreso interactiva y generación de reporte de fallos (`--log-fallos`).
+* `deckard verify [id]`: Verificación de reglas pedagógicas y compilación con `ripley check`. Admite comodines, `--all`, reporte de fallos (`--log-fallos`) y salida estructurada `--json`.
   > Los ejercicios que fallan se marcan automáticamente como no-verificados (`verificado: false`).
 * `deckard verify fuzz [id]`: Fuzzing y endurecimiento de testcases con `dredd fuzz-gen` y libFuzzer.
-* `deckard verify test-harness <id> <spec>`: Arnés de pruebas con inyección de fallos de malloc vía `ripley harness`.
+* `deckard verify test-harness <id> <spec>`: Arnés de pruebas con inyección de fallos de memoria vía `vasquez inject`.
 
-### 6. Empaquetado y Distribución
+### 6. Diagnóstico, Auditoría y Calidad
+* `deckard doctor`: Diagnóstico integral del estado de herramientas externas (gcc, typst, daedalus, ripley, git).
+* `deckard stats`: Histogramas ASCII de distribución Bloom, carga horaria y resumen estadístico (`--json`).
+* `deckard lint`: Verificación y auditoría de starter code y compilabilidad previa a exportar.
+* `deckard deps` / `deckard graph`: Análisis y visualización de grafo de dependencias temáticas entre ejercicios.
+* `deckard audit`: Detección de placeholders, omisiones y estado de completitud pedagógica del banco.
+* `deckard languagetool`: Auditoría ortográfica y gramatical de consignas con LanguageTool.
+
+### 7. Empaquetado y Distribución
 * `deckard pack <objetivo>`: Empaqueta ejercicios/guías en archivos firmados `.ripkg` y genera starter repos para GitHub Classroom.
+* `deckard unpack <paquete.ripkg>`: Desempaqueta y restaura ejercicios desde paquetes `.ripkg`.
 * `deckard multiplex <spec>`: Generador de variantes combinatorias de TPs con asignación determinista por padrón/legajo.
 
-### 7. Curaduría y Mejora con OpenCode (`deckard improve` / `ai`)
+### 8. Curaduría y Mejora con OpenCode (`deckard improve` / `ai`)
 * `deckard improve clarity <id|banco|gift>`: Claridad y desambiguación con verbos operativos de Bloom.
 * `deckard improve edge-cases <id|banco|gift>`: Especificación exhaustiva de casos borde, pre y postcondiciones.
 * `deckard improve examples <id|banco|gift>`: Enriquecimiento con ejemplos de I/O y trazas de ejecución.
@@ -133,7 +150,7 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 
 ## 📖 Documentación Detallada
 
-Para una guía paso a paso con todos los flujos pedagógicos, modelos de datos, personalización de plantillas CSS y ejemplos de integración con Ripley y Dredd, consultá el [**Manual Integral de Uso (`MANUAL.md`)**](MANUAL.md).
+Para una guía paso a paso con todos los flujos pedagógicos, modelos de datos, personalización de plantillas y ejemplos de integración con Ripley, Dredd y Vasquez, consultá el [**Manual Integral de Uso (`MANUAL.md`)**](MANUAL.md).
 
 ---
 
@@ -144,6 +161,9 @@ Para una guía paso a paso con todos los flujos pedagógicos, modelos de datos, 
 | **deckard** | Banco de ejercicios, balanceo pedagógico (Bloom) y exportación multiformato. |
 | **ripley** | Verificación estática/dinámica de soluciones modelo y sandbox docente. |
 | **dredd** | Corrección masiva de entregas de alumnos, feedback y fuzzing de testcases. |
+| **vasquez** | Inyección de fallos de memoria en tiempo de ejecución para arneses de prueba (`test-harness`). |
 | **alucard** | Síntesis de exámenes, question banks (GIFT/Moodle) y tracing C con GCC. |
 | **idkfa** | Generador de cuestionarios Moodle XML aleatorizados y anti-trampas. |
 | **myst-tools** | Validador y gestor de enlaces/anclas para documentación MyST Markdown. |
+
+*(Nota de diseño: Deckard no consume ni depende de `tyrell`, la síntesis y fuzzing de casos de prueba se delega enteramente a `dredd`).*

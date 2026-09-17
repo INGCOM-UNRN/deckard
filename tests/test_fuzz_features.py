@@ -66,7 +66,8 @@ def test_fuzz_marca_no_verificado_en_fallo(banco_fuzz, tmp_path):
 
     def mock_subprocess_run(cmd, *args, **kwargs):
         mock_res = MagicMock()
-        if "ej-fuzz-ok" in cmd:
+        cmd_str = " ".join(cmd) if isinstance(cmd, (list, tuple)) else str(cmd)
+        if "ej-fuzz-ok" in cmd_str:
             mock_res.returncode = 0
             mock_res.stderr = ""
         else:

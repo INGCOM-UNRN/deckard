@@ -61,6 +61,9 @@ from deckard.core.guides import (
     resolver_ruta_guia,
     validar_spec,
 )
+import shlex
+import shutil
+from deckard import __version__
 from deckard.core.models import Ejercicio, GuiaSpec, NivelBloom
 from deckard.core.verify import verificar_ejercicio
 
@@ -72,6 +75,27 @@ app = typer.Typer(
 console = Console()
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        console.print(f"deckard {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main_callback(
+    version: Optional[bool] = typer.Option(
+        None,
+        "--version",
+        "-v",
+        help="Muestra la versión de deckard y sale.",
+        callback=_version_callback,
+        is_eager=True,
+    ),
+) -> None:
+    """Gestor de bancos de ejercicios prácticos, guías y graduación (Programación 1)."""
+    pass
+
+
 def _leer_yaml(ruta: Path) -> dict:
     with open(ruta, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
@@ -79,12 +103,14 @@ def _leer_yaml(ruta: Path) -> dict:
 
 def _ejecutar_herramienta(comando: str) -> int:
     """Corre un comando externo heredando consola; avisa si no está instalado."""
-    import shutil as _shutil
-    binario = comando.split()[0]
-    if _shutil.which(binario) is None:
+    partes = shlex.split(comando) if isinstance(comando, str) else list(comando)
+    if not partes:
+        return 0
+    binario = partes[0]
+    if shutil.which(binario) is None:
         console.print(f"[red]'{binario}' no está instalado.[/red]")
         return 127
-    return subprocess.call(comando, shell=True)
+    return subprocess.call(partes)
 
 
 # ---------------------------------------------------------------------------
@@ -183,9 +209,33 @@ def bank_list(
     bloom: Optional[int] = typer.Option(None, "--bloom", "-b", min=1, max=5, help="Filtrar por nivel de Bloom (1-5)."),
     tag: Optional[str] = typer.Option(None, "--tag", "-T", help="Filtrar por etiqueta/tag."),
     verificado: Optional[bool] = typer.Option(None, "--verificado/--no-verificado", help="Filtrar por estado de verificación."),
+    as_json: bool = typer.Option(False, "--json", help="Salida en formato JSON estructurado."),
 ) -> None:
     """Lista los ejercicios del banco con su nivel, carga, tags y filtros."""
     items = buscar_ejercicios(banco, patron=patron, tema=tema, bloom=bloom, tag=tag, verificado=verificado)
+    total_min = sum(e.minutos_estimados for _, e in items)
+    verificados_count = sum(1 for _, e in items if e.verificado)
+
+    if as_json:
+        data = {
+            "total": len(items),
+            "total_minutos": total_min,
+            "verificados": verificados_count,
+            "ejercicios": [
+                {
+                    "id": e.id,
+                    "tema": e.tema,
+                    "bloom": int(e.bloom),
+                    "minutos": e.minutos_estimados,
+                    "tags": e.tags or [],
+                    "verificado": e.verificado,
+                }
+                for _, e in items
+            ],
+        }
+        console.print_json(data=data)
+        return
+
     tabla = Table(title=f"Banco de ejercicios ({len(items)} encontrados)")
     tabla.add_column("id", style="cyan")
     tabla.add_column("tema")
@@ -193,12 +243,7 @@ def bank_list(
     tabla.add_column("min", justify="right")
     tabla.add_column("tags", style="dim")
     tabla.add_column("verificado", justify="center")
-    total_min = 0
-    verificados_count = 0
     for _, e in items:
-        total_min += e.minutos_estimados
-        if e.verificado:
-            verificados_count += 1
         tags_str = ", ".join(e.tags) if e.tags else "—"
         tabla.add_row(e.id, e.tema, f"B{int(e.bloom)} {e.bloom.name.lower()}",
                       str(e.minutos_estimados), tags_str, "✓" if e.verificado else "—")
@@ -510,6 +555,7 @@ def verify(
     guardar: bool = typer.Option(True, "--guardar/--no-guardar", help="Persistir veredicto en ejercicio.yaml."),
     log_fallos: Optional[Path] = typer.Option(None, "--log-fallos", "-l", help="Ruta de archivo para guardar el reporte de ejercicios fallidos."),
     ripley: Optional[str] = typer.Option(None, "--ripley", help="Ruta al binario/zipapp de ripley."),
+    as_json: bool = typer.Option(False, "--json", help="Salida en formato JSON estructurado."),
 ) -> None:
     """Verifica la solución modelo de ejercicios usando ripley check."""
     if ejercicio_id is None and not all_exercises and not tema and not bloom and not pendientes:
@@ -532,6 +578,17 @@ def verify(
             if not resultado.ok or guardar:
                 actualizar_verificacion(dir_ej, resultado.ok)
 
+        if as_json:
+            console.print_json(data={
+                "total": 1,
+                "exitosos": 1 if resultado.ok else 0,
+                "fallidos": 0 if resultado.ok else 1,
+                "ejercicios": [
+                    {"id": ej.id, "tema": ej.tema, "ok": resultado.ok, "detalle": resultado.detalle}
+                ],
+            })
+            raise typer.Exit(code=0 if resultado.ok else 1)
+
         color = "green" if resultado.ok else "red"
         console.print(f"[{color}]{resultado.marca} {resultado.ejercicio}[/{color}] — {resultado.detalle}")
         if not resultado.ok:
@@ -544,6 +601,34 @@ def verify(
                 )
                 console.print(f"[yellow]📝 Reporte de fallos guardado en:[/yellow] {log_fallos}")
         raise typer.Exit(code=0 if resultado.ok else 1)
+
+    if as_json:
+        total_ok = 0
+        total_fallos = 0
+        items_json = []
+        for dir_ej, ej in candidatos:
+            res = verificar_ejercicio(dir_ej, ruta_ripley=ripley)
+            if (dir_ej / "ejercicio.yaml").is_file():
+                if not res.ok or guardar:
+                    actualizar_verificacion(dir_ej, res.ok)
+            if res.ok:
+                total_ok += 1
+            else:
+                total_fallos += 1
+            items_json.append({
+                "id": ej.id,
+                "tema": ej.tema,
+                "bloom": int(ej.bloom),
+                "ok": res.ok,
+                "detalle": res.detalle,
+            })
+        console.print_json(data={
+            "total": len(candidatos),
+            "exitosos": total_ok,
+            "fallidos": total_fallos,
+            "ejercicios": items_json,
+        })
+        raise typer.Exit(code=0 if total_fallos == 0 else 1)
 
     console.print(f"[bold]Verificando {len(candidatos)} ejercicios con ripley...[/bold]")
     tabla = Table(title="Resultados de verificación")
@@ -981,11 +1066,23 @@ def fuzz(
             raise typer.Exit(code=1)
 
         destino = dir_ej / "tests"
-        flag_libfuzzer = " --sin-libfuzzer" if sin_libfuzzer else ""
-        cmd = (f"dredd fuzz-gen {modelo} -o {destino} --cantidad {cantidad} "
-               f"--segundos {segundos}{flag_libfuzzer}")
-        console.print(f"[dim]$ {cmd}[/dim]")
-        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        dredd_bin = _shutil.which("dredd") or "dredd"
+        cmd_args = [
+            dredd_bin,
+            "fuzz-gen",
+            str(modelo),
+            "-o",
+            str(destino),
+            "--cantidad",
+            str(cantidad),
+            "--segundos",
+            str(segundos),
+        ]
+        if sin_libfuzzer:
+            cmd_args.append("--sin-libfuzzer")
+        cmd_str = " ".join(cmd_args)
+        console.print(f"[dim]$ {cmd_str}[/dim]")
+        proc = subprocess.run(cmd_args, capture_output=True, text=True)
         rc = proc.returncode
         if rc == 0:
             console.print("[green]✓ Testcases endurecidos. Recordá marcar 'verificado' tras re-correr deckard verify.[/green]")
@@ -1047,11 +1144,22 @@ def fuzz(
                 continue
 
             destino = dir_ej / "tests"
-            flag_libfuzzer = " --sin-libfuzzer" if sin_libfuzzer else ""
-            cmd = (f"dredd fuzz-gen {modelo} -o {destino} --cantidad {cantidad} "
-                   f"--segundos {segundos}{flag_libfuzzer}")
+            dredd_bin = _shutil.which("dredd") or "dredd"
+            cmd_args = [
+                dredd_bin,
+                "fuzz-gen",
+                str(modelo),
+                "-o",
+                str(destino),
+                "--cantidad",
+                str(cantidad),
+                "--segundos",
+                str(segundos),
+            ]
+            if sin_libfuzzer:
+                cmd_args.append("--sin-libfuzzer")
 
-            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            proc = subprocess.run(cmd_args, capture_output=True, text=True)
             if proc.returncode == 0:
                 total_exitos += 1
                 casos_in = list(destino.glob("*.in")) if destino.is_dir() else []
@@ -1189,8 +1297,10 @@ def exportar_contenido(
     single_pdf: bool = typer.Option(False, "--single-pdf", "--combined", "-c", help="Generar un único PDF consolidado cuando hay múltiples ejercicios para exportar."),
     titulo: Optional[str] = typer.Option(None, "--titulo", help="Título del compendio consolidado (usado con --single-pdf)."),
     dos_columnas: bool = typer.Option(False, "--dos-columnas", "--two-columns", "-2", help="Diseño compacto en 2 columnas para exámenes de laboratorio (ahorro de papel)."),
+    as_json: bool = typer.Option(False, "--json", help="Salida en formato JSON estructurado."),
 ) -> None:
     """Exporta ejercicios o guías a Typst, PDF, Markdown o HTML con plantillas personalizables, comodines y filtros."""
+    archivos_generados: List[str] = []
     tipos = _parse_output_types(type)
     extra_css_str = css.read_text(encoding="utf-8") if css else None
 
@@ -1238,6 +1348,7 @@ def exportar_contenido(
                         dir_banco=banco,
                     )
                     dest.write_text(md_salida, encoding="utf-8")
+                    archivos_generados.append(str(dest))
                     console.print(f"[green]✓ Guía exportada a Markdown:[/green] {dest}")
                 elif fmt in ("typ", "typst"):
                     typ_salida, _ = renderizar_guia_typst(
@@ -1250,6 +1361,7 @@ def exportar_contenido(
                         dos_columnas=dos_columnas,
                     )
                     dest.write_text(typ_salida, encoding="utf-8")
+                    archivos_generados.append(str(dest))
                     console.print(f"[green]✓ Guía exportada a Typst:[/green] {dest}")
                 elif fmt == "html":
                     html_salida, _ = renderizar_guia_html(
@@ -1263,6 +1375,7 @@ def exportar_contenido(
                         via_markdown_pipeline=pipeline_md,
                     )
                     dest.write_text(html_salida, encoding="utf-8")
+                    archivos_generados.append(str(dest))
                     console.print(f"[green]✓ Guía exportada a HTML:[/green] {dest}")
                 elif fmt == "pdf":
                     try:
@@ -1276,6 +1389,7 @@ def exportar_contenido(
                             dos_columnas=dos_columnas,
                         )
                         pdf_path = compilar_typst_a_pdf(typst_salida, dest, root_dir=base_p)
+                        archivos_generados.append(str(pdf_path))
                         console.print(f"[green]✓ Guía exportada a PDF (Typst):[/green] {pdf_path}")
                     except Exception as e_typst:
                         # Fallback a HTML si la plantilla era HTML
@@ -1291,10 +1405,13 @@ def exportar_contenido(
                                 via_markdown_pipeline=pipeline_md,
                             )
                             pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
+                            archivos_generados.append(str(pdf_path))
                             console.print(f"[green]✓ Guía exportada a PDF:[/green] {pdf_path}")
                         except Exception as e:
                             console.print(f"[red]Error exportando PDF: {e_typst or e}[/red]")
                             raise typer.Exit(code=1)
+            if as_json:
+                console.print_json(data={"status": "ok", "total": len(archivos_generados), "archivos": archivos_generados})
             return
 
     # Caso 2: Ejercicio(s) en el banco (wildcards, filtros, --all)
@@ -1377,6 +1494,7 @@ def exportar_contenido(
                     dir_banco=banco,
                 )
                 dest.write_text(md_salida, encoding="utf-8")
+                archivos_generados.append(str(dest))
                 console.print(f"[green]✓ Compendio consolidado ({len(candidatos)} ejercicios) exportado a Markdown:[/green] {dest}")
             elif fmt in ("typ", "typst"):
                 typ_salida, _ = renderizar_guia_typst(
@@ -1389,6 +1507,7 @@ def exportar_contenido(
                     dos_columnas=dos_columnas,
                 )
                 dest.write_text(typ_salida, encoding="utf-8")
+                archivos_generados.append(str(dest))
                 console.print(f"[green]✓ Compendio consolidado ({len(candidatos)} ejercicios) exportado a Typst:[/green] {dest}")
             elif fmt == "html":
                 html_salida, _ = renderizar_guia_html(
@@ -1402,6 +1521,7 @@ def exportar_contenido(
                     via_markdown_pipeline=pipeline_md,
                 )
                 dest.write_text(html_salida, encoding="utf-8")
+                archivos_generados.append(str(dest))
                 console.print(f"[green]✓ Compendio consolidado ({len(candidatos)} ejercicios) exportado a HTML:[/green] {dest}")
             elif fmt == "pdf":
                 try:
@@ -1415,6 +1535,7 @@ def exportar_contenido(
                         dos_columnas=dos_columnas,
                     )
                     pdf_path = compilar_typst_a_pdf(typst_salida, dest, root_dir=base_p)
+                    archivos_generados.append(str(pdf_path))
                     console.print(f"[green]✓ Compendio consolidado ({len(candidatos)} ejercicios) exportado a PDF (Typst):[/green] {pdf_path}")
                 except Exception as e_typst:
                     try:
@@ -1429,10 +1550,13 @@ def exportar_contenido(
                             via_markdown_pipeline=pipeline_md,
                         )
                         pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
+                        archivos_generados.append(str(pdf_path))
                         console.print(f"[green]✓ Compendio consolidado ({len(candidatos)} ejercicios) exportado a PDF:[/green] {pdf_path}")
                     except Exception as e:
                         console.print(f"[red]Error exportando PDF: {e_typst or e}[/red]")
                         raise typer.Exit(code=1)
+        if as_json:
+            console.print_json(data={"status": "ok", "total": len(archivos_generados), "archivos": archivos_generados})
         return
 
     if len(candidatos) == 1 and not es_multiple:
@@ -1463,6 +1587,7 @@ def exportar_contenido(
                     dir_banco=banco,
                 )
                 dest.write_text(md_salida, encoding="utf-8")
+                archivos_generados.append(str(dest))
                 console.print(f"[green]✓ Ejercicio exportado a Markdown:[/green] {dest}")
             elif fmt in ("typ", "typst"):
                 typ_salida, _ = renderizar_ejercicio_typst(
@@ -1474,6 +1599,7 @@ def exportar_contenido(
                     dir_banco=banco,
                 )
                 dest.write_text(typ_salida, encoding="utf-8")
+                archivos_generados.append(str(dest))
                 console.print(f"[green]✓ Ejercicio exportado a Typst:[/green] {dest}")
             elif fmt == "html":
                 html_salida, _ = renderizar_ejercicio_html(
@@ -1488,6 +1614,7 @@ def exportar_contenido(
                     via_markdown_pipeline=pipeline_md,
                 )
                 dest.write_text(html_salida, encoding="utf-8")
+                archivos_generados.append(str(dest))
                 console.print(f"[green]✓ Ejercicio exportado a HTML:[/green] {dest}")
             elif fmt == "pdf":
                 try:
@@ -1500,6 +1627,7 @@ def exportar_contenido(
                         dir_banco=banco,
                     )
                     pdf_path = compilar_typst_a_pdf(typst_salida, dest, root_dir=base_p)
+                    archivos_generados.append(str(pdf_path))
                     console.print(f"[green]✓ Ejercicio exportado a PDF (Typst):[/green] {pdf_path}")
                 except Exception as e_typst:
                     try:
@@ -1515,10 +1643,13 @@ def exportar_contenido(
                             via_markdown_pipeline=pipeline_md,
                         )
                         pdf_path = compilar_pdf(html_salida, dest, base_url=str(base_p) if base_p else ".")
+                        archivos_generados.append(str(pdf_path))
                         console.print(f"[green]✓ Ejercicio exportado a PDF:[/green] {pdf_path}")
                     except Exception as e:
                         console.print(f"[red]Error exportando PDF: {e_typst or e}[/red]")
                         raise typer.Exit(code=1)
+        if as_json:
+            console.print_json(data={"status": "ok", "total": len(archivos_generados), "archivos": archivos_generados})
         return
     else:
         out_dir = salida or Path("dist")
@@ -1595,6 +1726,11 @@ def exportar_contenido(
                         compilar_pdf(html_salida, file_dest, base_url=str(base_p) if base_p else ".")
 
                 tabla.add_row(ej.id, fmt.upper(), str(file_dest))
+                archivos_generados.append(str(file_dest))
+
+        if as_json:
+            console.print_json(data={"status": "ok", "total": len(archivos_generados), "archivos": archivos_generados})
+            return
 
         console.print(tabla)
         console.print(f"[green]✓ Archivos generados en {out_dir}[/green]")
@@ -2084,16 +2220,19 @@ def test_harness(
     ejercicio_id: str = typer.Argument(..., help="Id del ejercicio en el banco."),
     spec: Path = typer.Argument(..., exists=True, help="spec.yaml del arnés."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio del banco."),
-    ripley: Optional[str] = typer.Option(None, "--ripley"),
+    herramienta: Optional[str] = typer.Option(None, "--herramienta", help="Binario de inyección (por defecto vasquez)."),
+    ripley: Optional[str] = typer.Option(None, "--ripley", hidden=True),
 ) -> None:
-    """Corre el arnés de prueba con inyección de malloc vía `ripley harness`."""
-    dir_ej = banco / ejercicio_id
-    ruta = f"--ripley {ripley} " if ripley else ""
-    os.chdir(spec.parent.parent if len(spec.parent.parts) > 1 else Path("."))
-    cmd = f"ripley harness {spec.name} {ruta.strip()}"
-    console.print(f"[dim]$ {cmd}[/dim]")
-    rc = _ejecutar_herramienta(cmd)
-    raise typer.Exit(code=rc)
+    """Corre el arnés de prueba con inyección de fallos de memoria vía `vasquez inject`."""
+    binario = herramienta or shutil.which("vasquez") or "vasquez"
+    if shutil.which(binario) is None:
+        console.print(f"[red]'{binario}' no está instalado en el PATH.[/red]")
+        raise typer.Exit(code=127)
+    cmd_args = [binario, "inject", str(spec)]
+    cmd_str = " ".join(cmd_args)
+    console.print(f"[dim]$ {cmd_str}[/dim]")
+    proc = subprocess.run(cmd_args)
+    raise typer.Exit(code=proc.returncode)
 
 
 @app.command("pack")
@@ -2213,6 +2352,7 @@ def multiplex(
 @bank_app.command("stats")
 def cmd_stats(
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco a analizar."),
+    as_json: bool = typer.Option(False, "--json", help="Salida en formato JSON estructurado."),
 ) -> None:
     """Grafica la distribución de Bloom y tiempos acumulados con histogramas ASCII en terminal."""
     from deckard.core.bank import buscar_ejercicios
@@ -2222,6 +2362,9 @@ def cmd_stats(
         update_bank_cache(banco)
     ejs = buscar_ejercicios(banco, recursivo=True)
     if not ejs:
+        if as_json:
+            console.print_json(data={"total_ejercicios": 0, "verificados": 0, "tiempo_acumulado_min": 0, "promedio_min": 0, "distribucion_bloom": {}, "distribucion_temas": {}})
+            return
         console.print(f"[yellow]No se encontraron ejercicios en {banco}[/yellow]")
         return
 
@@ -2237,6 +2380,18 @@ def cmd_stats(
         bloom_counts[b_val] = bloom_counts.get(b_val, 0) + 1
         t = ej.tema or "general"
         theme_counts[t] = theme_counts.get(t, 0) + 1
+
+    if as_json:
+        data = {
+            "total_ejercicios": total,
+            "verificados": verificados,
+            "tiempo_acumulado_min": total_min,
+            "promedio_min": round(total_min / total, 2) if total else 0,
+            "distribucion_bloom": bloom_counts,
+            "distribucion_temas": theme_counts,
+        }
+        console.print_json(data=data)
+        return
 
     console.print(f"\n[bold green]📊 Estadísticas del Banco Deckard[/bold green] ([dim]{banco}[/dim])")
     console.print(f"  • [bold]Total ejercicios:[/bold] {total}")
@@ -4177,5 +4332,5 @@ def cmd_failure_hints(
     console.print(Panel(panel_content, title=f"Pista Pedagógica: {pista.codigo_falla}", border_style="cyan"))
 
 
-
-
+if __name__ == "__main__":
+    app()

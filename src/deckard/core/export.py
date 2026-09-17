@@ -83,7 +83,6 @@ def buscar_plantilla(
     home = Path.home()
     candidatos_globales = [
         home / ".config" / "deckard" / "templates" / nombre_archivo,
-        home / ".gemini" / "config" / "deckard" / "templates" / nombre_archivo,
         home / ".deckard" / "templates" / nombre_archivo,
     ]
     for cand in candidatos_globales:
@@ -495,7 +494,11 @@ def compilar_pdf(
     base_url: Optional[str] = None,
     asset_dirs: Optional[List[Path]] = None,
 ) -> Path:
-    """Compila contenido (Typst o HTML) a PDF con Typst como motor prioritario."""
+    """Compila contenido a PDF.
+    
+    Typst es el motor prioritario y oficial del ecosistema.
+    WeasyPrint se mantiene exclusivamente como fallback legacy para documentos HTML y está deprecado.
+    """
     salida_pdf = Path(salida_pdf)
     salida_pdf.parent.mkdir(parents=True, exist_ok=True)
 
@@ -503,10 +506,16 @@ def compilar_pdf(
     if "#set" in html_or_typst_content or "//" in html_or_typst_content.splitlines()[0]:
         return compilar_typst_a_pdf(html_or_typst_content, salida_pdf, root_dir=Path(base_url) if base_url else None)
 
-    # Si es HTML, intentar WeasyPrint si está disponible, o convertir vía typst
+    # Si es HTML, intentar WeasyPrint (legacy) si está disponible, o convertir vía typst
     resolved_base_url = str(base_url) if base_url else "."
     try:
+        import warnings
         import weasyprint
+        warnings.warn(
+            "El renderizado PDF vía WeasyPrint está deprecado en favor del motor nativo Typst.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         weasyprint.HTML(string=html_or_typst_content, base_url=resolved_base_url).write_pdf(
             target=str(salida_pdf)
         )
