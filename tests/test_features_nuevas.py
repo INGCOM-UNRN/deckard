@@ -203,7 +203,7 @@ def test_export_markdown_guia(guias_dir, banco_con_tests, tmp_path):
 
 def test_export_pdf_via_pipeline_markdown(banco_con_tests, tmp_path):
     out_pdf = tmp_path / "pipeline.pdf"
-    with patch("deckard.cli.compilar_pdf") as mock_pdf:
+    with patch("deckard.cli.export.compilar_pdf") as mock_pdf:
         mock_pdf.return_value = out_pdf
         res = runner.invoke(app, [
             "export", "invertir-vector",
@@ -219,7 +219,7 @@ def test_export_pdf_via_pipeline_markdown(banco_con_tests, tmp_path):
 
 def test_export_multi_type_ejercicio(banco_con_tests, tmp_path):
     out_dir = tmp_path / "multi_out"
-    with patch("deckard.cli.compilar_pdf") as mock_pdf:
+    with patch("deckard.cli.export.compilar_pdf") as mock_pdf:
         mock_pdf.return_value = out_dir / "invertir-vector.pdf"
         res = runner.invoke(app, [
             "export", "invertir-vector",
@@ -235,7 +235,7 @@ def test_export_multi_type_ejercicio(banco_con_tests, tmp_path):
 
 def test_export_multi_type_guia(guias_dir, banco_con_tests, tmp_path):
     out_dir = tmp_path / "multi_guia"
-    with patch("deckard.cli.compilar_pdf") as mock_pdf:
+    with patch("deckard.cli.export.compilar_pdf") as mock_pdf:
         mock_pdf.return_value = out_dir / "guia_compuesta.pdf"
         res = runner.invoke(app, [
             "export", str(guias_dir / "guia_compuesta.yaml"),
@@ -364,7 +364,7 @@ def test_guide_add_and_remove(guias_dir, banco_con_tests):
 
 
 def test_guide_verify(guias_dir, banco_con_tests):
-    with patch("deckard.cli.verificar_ejercicio") as mock_verify:
+    with patch("deckard.cli.guide.verificar_ejercicio") as mock_verify:
         from deckard.core.verify import ResultadoVerify
         mock_verify.return_value = ResultadoVerify("ej", True, "OK")
 

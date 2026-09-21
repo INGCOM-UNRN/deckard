@@ -202,7 +202,7 @@ def test_cli_fuzz_all_ejecuta_batch(banco):
 
 
 def test_cli_verify_all_batch(banco):
-    with patch("deckard.cli.verificar_ejercicio") as mock_verify:
+    with patch("deckard.cli.verify.verificar_ejercicio") as mock_verify:
         from deckard.core.verify import ResultadoVerify
         mock_verify.return_value = ResultadoVerify("ej", True, "Todo en orden")
 
@@ -241,7 +241,7 @@ def test_cli_json_outputs(banco):
     assert "distribucion_bloom" in data_stats
 
     # verify --all --json
-    with patch("deckard.cli.verificar_ejercicio") as mock_verify:
+    with patch("deckard.cli.verify.verificar_ejercicio") as mock_verify:
         from deckard.core.verify import ResultadoVerify
         mock_verify.return_value = ResultadoVerify("ej", True, "OK")
 

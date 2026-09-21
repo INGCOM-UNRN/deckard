@@ -53,7 +53,7 @@ def test_verify_batch_progress_and_failure_log(banco_verify, tmp_path):
             return ResultadoVerify(ejercicio="ej-verif-ok", ok=True, detalle="0x0000h OK")
         return ResultadoVerify(ejercicio="ej-verif-fallo", ok=False, detalle="0x0001h GCC Error")
 
-    with patch("deckard.cli.verificar_ejercicio", side_effect=mock_verificar):
+    with patch("deckard.cli.verify.verificar_ejercicio", side_effect=mock_verificar):
         res = runner.invoke(app, [
             "verify", "--all",
             "--banco", str(banco_verify),
@@ -82,7 +82,7 @@ def test_verify_single_marks_unverified_on_failure(banco_verify, tmp_path):
     def mock_verificar(dir_ej, *args, **kwargs):
         return ResultadoVerify(ejercicio="ej-verif-fallo", ok=False, detalle="0x0002h Linker Error")
 
-    with patch("deckard.cli.verificar_ejercicio", side_effect=mock_verificar):
+    with patch("deckard.cli.verify.verificar_ejercicio", side_effect=mock_verificar):
         res = runner.invoke(app, [
             "verify", "ej-verif-fallo",
             "--banco", str(banco_verify),
