@@ -43,11 +43,11 @@ Homepage = "https://github.com/INGCOM-UNRN-P1/deckard"
 Repository = "https://github.com/INGCOM-UNRN-P1/deckard.git"
 Issues = "https://github.com/INGCOM-UNRN-P1/deckard/issues"
 
-[project.optional-dependencies]
-dev = ["pytest>=8.0"]
-
 [project.scripts]
 deckard = "deckard.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/deckard"]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
