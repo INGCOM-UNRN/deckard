@@ -31,6 +31,7 @@ from deckard import __version__
 from deckard.core.models import Ejercicio
 
 app = typer.Typer(
+    context_settings={"help_option_names": ["-h", "--help"]},
     name="deckard",
     help="Gestor de bancos de ejercicios prácticos, guías y graduación (Programación 1).",
     no_args_is_help=True,

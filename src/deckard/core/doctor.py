@@ -56,41 +56,68 @@ def chequear_herramienta(comando: str, args_version: str = "--version") -> Dict[
     return {"disponible": True, "version": version, "ruta": path}
 
 
+HERRAMIENTAS = [
+    ("gcc", "Compilador GNU C (necesario para verificar ejercicios)", True, "sudo apt install build-essential"),
+    ("typst", "Compilador Typst para PDFs de alta calidad", False, "cargo install typst-cli o descargar de github.com/typst/typst"),
+    ("daedalus", "Compilador pedagógico con explicaciones en español", False, "uv tool install git+https://github.com/INGCOM-UNRN-P1/daedalus"),
+    ("ripley", "Linter pedagógico de cátedra", False, "uv tool install git+https://github.com/INGCOM-UNRN-P1/ripley"),
+    ("git", "Control de versiones para gestión de bancos descentralizados", False, "sudo apt install git"),
+]
+
+
+def diagnosticar() -> List[Dict[str, Any]]:
+    """Estado de cada herramienta externa (sin imprimir nada)."""
+    chequeos = []
+    for cmd, desc, obligatorio, fix in HERRAMIENTAS:
+        info = chequear_herramienta(cmd)
+        chequeos.append({
+            "nombre": cmd,
+            "requerido": obligatorio,
+            "ok": info["disponible"],
+            "detalle": f"{info['version']} ({info['ruta']})" if info["disponible"] else "No encontrado en $PATH",
+            "proposito": desc,
+            "sugerencia": "" if info["disponible"] else fix,
+        })
+    return chequeos
+
+
+def informe_json(chequeos: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Sobre JSON común de `doctor --json` (schema_version 1.0.0)."""
+    from deckard import __version__
+
+    return {
+        "schema_version": "1.0.0",
+        "herramienta": "deckard",
+        "version": __version__,
+        "ok": all(c["ok"] for c in chequeos if c["requerido"]),
+        "chequeos": chequeos,
+    }
+
+
 def ejecutar_diagnostico_doctor(console: Optional[Console] = None) -> bool:
     """Ejecuta y muestra el diagnóstico integral de herramientas requeridas y opcionales."""
     cons = console or Console()
-    
-    herramientas = [
-        ("gcc", "Compilador GNU C (necesario para verificar ejercicios)", True, "sudo apt install build-essential"),
-        ("typst", "Compilador Typst para PDFs de alta calidad", False, "cargo install typst-cli o descargar de github.com/typst/typst"),
-        ("daedalus", "Compilador pedagógico con explicaciones en español", False, "pip install -e ./daedalus"),
-        ("ripley", "Linter pedagógico de cátedra", False, "pip install -e ./ripley"),
-        ("git", "Control de versiones para gestión de bancos descentralizados", False, "sudo apt install git"),
-    ]
-    
     tabla = Table(title="🏥 Diagnóstico del Entorno de Deckard (doctor)", border_style="cyan")
     tabla.add_column("Herramienta", style="bold white")
     tabla.add_column("Estado", justify="center")
     tabla.add_column("Versión / Ruta", style="dim")
     tabla.add_column("Propósito / Acción sugerida", style="yellow")
-    
+
     todo_ok = True
-    for cmd, desc, obligatorio, fix in herramientas:
-        info = chequear_herramienta(cmd)
-        if info["disponible"]:
+    for chequeo in diagnosticar():
+        if chequeo["ok"]:
             estado = "[bold green]✓ OK[/bold green]"
-            detalles = f"{info['version']} ([cyan]{info['ruta']}[/cyan])"
-            accion = desc
+            detalles = chequeo["detalle"]
+            accion = chequeo["proposito"]
         else:
-            if obligatorio:
+            if chequeo["requerido"]:
                 estado = "[bold red]✗ Faltante (Crítico)[/bold red]"
                 todo_ok = False
             else:
                 estado = "[yellow]! Opcional[/yellow]"
             detalles = "[dim]No encontrado en $PATH[/dim]"
-            accion = f"{desc} ↳ Instalar: {fix}"
-            
-        tabla.add_row(cmd, estado, detalles, accion)
-        
+            accion = f"{chequeo['proposito']} ↳ Instalar: {chequeo['sugerencia']}"
+        tabla.add_row(chequeo["nombre"], estado, detalles, accion)
+
     cons.print(tabla)
     return todo_ok
