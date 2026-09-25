@@ -89,11 +89,6 @@ def fuzz(
     log_fallos: Optional[Path] = typer.Option(None, "--log-fallos", "-l", help="Ruta de archivo para guardar el reporte de ejercicios fallidos u omitidos."),
 ) -> None:
     """Endurece los tests de ejercicios usando `dredd fuzz-gen` (soporta wildcards, batch y tracking de progreso)."""
-    import shutil as _shutil
-    if _shutil.which("dredd") is None:
-        console.print("[red]'dredd' no está instalado en el PATH.[/red]")
-        raise typer.Exit(code=127)
-
     if ejercicio_id is None and not all_exercises and not tema and not bloom:
         console.print("[yellow]Especificá un id de ejercicio, un patrón comodín (ej: '*') o usá --all para todo el banco.[/yellow]")
         raise typer.Exit(code=1)
@@ -116,6 +111,12 @@ def fuzz(
             tabla.add_row(ej.id, ej.tema, f"B{int(ej.bloom)}", "✓" if tiene_sol else "[red]✗[/red]")
         console.print(tabla)
         return
+
+    import shutil as _shutil
+    if _shutil.which("dredd") is None:
+        console.print("[red]'dredd' no está instalado en el PATH.[/red]")
+        raise typer.Exit(code=127)
+
 
     es_unico_puntual = len(candidatos) == 1 and pat and not any(c in pat for c in "*?[]") and not all_exercises
     if es_unico_puntual:
