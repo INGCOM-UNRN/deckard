@@ -94,7 +94,7 @@ app.add_typer(bank_app, name="bank")
 verify_app = typer.Typer(
     cls=DefaultCommandGroup,
     name="verify",
-    help="Verificación pedagógica (ripley check), fuzzing (dredd) y arnés de pruebas (ripley harness).",
+    help="Verificación pedagógica (ripley check), fuzzing (dredd) y arnés de pruebas (vasquez inject).",
     no_args_is_help=False,
 )
 app.add_typer(verify_app, name="verify")
