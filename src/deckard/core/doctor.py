@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from typing import Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 from rich.console import Console
 from rich.table import Table

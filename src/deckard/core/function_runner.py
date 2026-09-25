@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from deckard.core.models import CasoTestFuncion, Ejercicio
 
