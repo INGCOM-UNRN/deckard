@@ -29,20 +29,10 @@ class ResultadoSanitizer:
 def _compilar_con_daedalus(archivos: list[Path], binario: Path, extra_flags: list[str]) -> Optional[tuple[bool, str]]:
     try:
         from daedalus.core.compiler import compilar_archivos
-        res = compilar_archivos(archivos, binario_salida=binario, flags_adicionales=extra_flags)
-        return res.exito, res.stderr_crudo
     except ImportError:
-        import sys
-        sibling = Path(__file__).resolve().parents[4] / "daedalus" / "src"
-        if sibling.is_dir() and str(sibling) not in sys.path:
-            sys.path.insert(0, str(sibling))
-            try:
-                from daedalus.core.compiler import compilar_archivos
-                res = compilar_archivos(archivos, binario_salida=binario, flags_adicionales=extra_flags)
-                return res.exito, res.stderr_crudo
-            except ImportError:
-                return None
-        return None
+        return None  # sin el extra `ecosistema` se usa el camino propio
+    res = compilar_archivos(archivos, binario_salida=binario, flags_adicionales=extra_flags)
+    return res.exito, res.stderr_crudo
 
 
 def auditar_solucion_sanitizers(

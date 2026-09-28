@@ -218,6 +218,15 @@ wheels = [
 ]
 
 [[package]]
+name = "daedalus"
+version = "0.1.0"
+source = { git = "https://github.com/INGCOM-UNRN-P1/daedalus?rev=cd3eb998193cd5bd9ea881aa9a0e19f5fe6d9a86#cd3eb998193cd5bd9ea881aa9a0e19f5fe6d9a86" }
+dependencies = [
+    { name = "rich" },
+    { name = "typer" },
+]
+
+[[package]]
 name = "deckard"
 version = "0.2.0"
 source = { editable = "." }
@@ -231,6 +240,15 @@ dependencies = [
     { name = "weasyprint" },
 ]
 
+[package.optional-dependencies]
+ecosistema = [
+    { name = "daedalus" },
+    { name = "nostromo" },
+]
+languagetool = [
+    { name = "myst-tools" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
@@ -238,14 +256,18 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "daedalus", marker = "extra == 'ecosistema'", git = "https://github.com/INGCOM-UNRN-P1/daedalus?rev=cd3eb998193cd5bd9ea881aa9a0e19f5fe6d9a86" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "markdown", specifier = ">=3.5.0" },
+    { name = "myst-tools", marker = "extra == 'languagetool'", git = "https://github.com/martinvilu/mystmd-tools?rev=a55f7db83b03aa1da9485b3cf70c49b71ece2664" },
+    { name = "nostromo", marker = "extra == 'ecosistema'", git = "https://github.com/INGCOM-UNRN-P1/nostromo?rev=803726033d31d6a1b5e64545bb6a15c6cbe21d0a" },
     { name = "pydantic", specifier = ">=2.0,<3.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.7.0" },
     { name = "typer", specifier = ">=0.12.0" },
     { name = "weasyprint", specifier = ">=60.0" },
 ]
+provides-extras = ["ecosistema", "languagetool"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]
@@ -429,6 +451,25 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "myst-tools"
+version = "0.2.0"
+source = { git = "https://github.com/martinvilu/mystmd-tools?rev=a55f7db83b03aa1da9485b3cf70c49b71ece2664#a55f7db83b03aa1da9485b3cf70c49b71ece2664" }
+dependencies = [
+    { name = "rich" },
+    { name = "typer" },
+]
+
+[[package]]
+name = "nostromo"
+version = "0.1.0"
+source = { git = "https://github.com/INGCOM-UNRN-P1/nostromo?rev=803726033d31d6a1b5e64545bb6a15c6cbe21d0a#803726033d31d6a1b5e64545bb6a15c6cbe21d0a" }
+dependencies = [
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "typer" },
 ]
 
 [[package]]

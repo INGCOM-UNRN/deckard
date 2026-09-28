@@ -5,7 +5,10 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from deckard.cli import app
+# myst-tools llega con el extra `languagetool` (uv sync --extra languagetool).
+pytest.importorskip("myst_tools", reason="requiere el extra languagetool (myst-tools)")
+
+from deckard.cli import app  # noqa: E402
 from deckard.core.models import Ejercicio, NivelBloom
 from deckard.core.languagetool_checker import (
     enmascarar_enunciado,

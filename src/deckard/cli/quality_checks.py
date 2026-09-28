@@ -117,11 +117,15 @@ def cmd_spellcheck(
     """Verifica y corrige ortografía y gramática en enunciados y pistas de ejercicios usando LanguageTool."""
     import json
     from deckard.core.guides import cargar_guia_con_ejercicios
-    from deckard.core.languagetool_checker import (
-        analizar_ejercicio_languagetool,
-        aplicar_autofix_ejercicio,
-        generar_reporte_markdown_languagetool,
-    )
+    try:
+        from deckard.core.languagetool_checker import (
+            analizar_ejercicio_languagetool,
+            aplicar_autofix_ejercicio,
+            generar_reporte_markdown_languagetool,
+        )
+    except ModuleNotFoundError as error:
+        console.print(f"[bold red]Error:[/bold red] {error}")
+        raise typer.Exit(1)
 
     reglas_ign = set(r.strip() for r in ignore_rules.split(",") if r.strip()) if ignore_rules else None
     palabras_ign = set(w.strip() for w in ignore_words.split(",") if w.strip()) if ignore_words else None
