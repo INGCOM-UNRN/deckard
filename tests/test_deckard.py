@@ -213,14 +213,15 @@ def test_cli_verify_all_batch(banco):
 
 
 def test_cli_version():
-    import json
+    from deckard import __version__
+
     res = runner.invoke(app, ["--version"])
     assert res.exit_code == 0
-    assert "deckard 0.1.0" in res.stdout
+    assert f"deckard {__version__}" in res.stdout
 
     res_v = runner.invoke(app, ["-v"])
     assert res_v.exit_code == 0
-    assert "deckard 0.1.0" in res_v.stdout
+    assert f"deckard {__version__}" in res_v.stdout
 
 
 def test_cli_json_outputs(banco):
