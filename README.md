@@ -167,3 +167,84 @@ Para una guía paso a paso con todos los flujos pedagógicos, modelos de datos, 
 | **myst-tools** | Validador y gestor de enlaces/anclas para documentación MyST Markdown. |
 
 *(Nota de diseño: Deckard no consume ni depende de `tyrell`, la síntesis y fuzzing de casos de prueba se delega enteramente a `dredd`).*
+
+<!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
+
+## Referencia rápida
+
+### Requisitos
+
+- Python ≥ 3.11 y [uv](https://docs.astral.sh/uv/getting-started/installation/).
+- Programas del sistema: `gcc`, `typst`.
+
+| Sistema | `gcc` | `typst` |
+|:--|:--|:--|
+| Debian / Ubuntu | `sudo apt install gcc` | binario de https://github.com/typst/typst/releases |
+| Fedora | `sudo dnf install gcc` | binario de https://github.com/typst/typst/releases |
+| Windows | incluido en el entorno de la cátedra (MSYS2 UCRT64) | `winget install --id Typst.Typst` |
+| macOS | `xcode-select --install` (clang como `gcc`) | `brew install typst` |
+
+### Comandos
+
+| Comando | Descripción |
+|:--|:--|
+| `deckard init` | Inicializa la estructura del banco (banco/, guias/). |
+| `deckard new` | Crea un ejercicio nuevo con esqueleto de metadata, funciones, enunciado.md y solución. |
+| `deckard organize` | Reorganiza los ejercicios en carpetas según nivel de Bloom, tipo (funciones vs io) y/o tema. |
+| `deckard show` | Muestra el enunciado y detalles de un ejercicio con control de secciones. |
+| `deckard audit` | Audita la salud del banco: longitud y calidad de redacción del enunciado, y completitud de especificación. |
+| `deckard compose` | Compone una guía balanceada por carga cognitiva y taxonomía de Bloom. |
+| `deckard pack` | Empaqueta ejercicios o guías como .ripkg para Ripley y starter repos. |
+| `deckard multiplex` | tp-multiplexer: Genera variantes combinatorias y asignación determinista por alumno. |
+| `deckard stats` | Grafica la distribución de Bloom y tiempos acumulados con histogramas ASCII en terminal. |
+| `deckard lint` | Verifica que los metadatos y el starter_code de los ejercicios compilen limpiamente antes de exportar. |
+| `deckard duplicate` | Clona y versiona variantes de ejercicios conservando enunciados, solución y tests. |
+| `deckard graph`, `deckard deps` | Detecta y grafica dependencias conceptuales y grafo de prerrequisitos entre ejercicios. |
+| `deckard index`, `deckard cache` | Actualiza o reconstruye el índice SQLite (~/.cache/deckard/index.db) para acelerar búsquedas en bancos masivos. |
+| `deckard unpack` | Extrae un bundle .deckard.tar.gz en el banco o directorio especificado. |
+| `deckard doctor` | Verifica dependencias externas del sistema (GCC, Typst, Daedalus, Git). |
+| `deckard browse` | Navega y visualiza interactivamente ejercicios del banco con Rich. |
+| `deckard publish-classroom`, `deckard export-classroom` | Genera la estructura completa de un repositorio para GitHub Classroom (README, starter code, Makefile, CI). |
+| `deckard export-notebook` | Exporta un ejercicio en formato interactivo Jupyter Notebook (.ipynb) con kernel C. |
+| `deckard check-load` | Audita la carga horaria acumulada y el balance Bloom de una guía. |
+| `deckard compose-variant`, `deckard variant` | Genera automáticamente una variante homóloga para recuperatorios respetando niveles Bloom. |
+| `deckard sync` | Sincroniza el banco de ejercicios con un repositorio Git descentralizado. |
+| `deckard audit-guide` | Audita la completitud y calidad técnica de todos los ejercicios de una guía. |
+| `deckard languagetool`, `deckard grammar`, `deckard spellcheck` | Verifica y corrige ortografía y gramática en enunciados y pistas de ejercicios usando LanguageTool. |
+| `deckard export-zip`, `deckard pack-zip` | Empaqueta un starter kit o guía completa en un archivo ZIP con clave de entrega (QoL 11). |
+| `deckard audit-statements`, `deckard check-ambiguity` | Audita ambigüedades, términos vagos y calidad pedagógica en los enunciados (QoL 12). |
+| `deckard diagram-ascii`, `deckard ascii-diagram`, `deckard diagram` | Genera diagramas y esquemas de estructuras de datos en formato ASCII, Mermaid o PlantUML para enunciados (QoL 14). |
+| `deckard hints`, `deckard export-hints` | Exporta o genera pistas escalonadas (Hints) progresivas para un ejercicio (QoL 15). |
+| `deckard init-tests` | Genera plantillas de tests unitarios embebidas en C utilizando p1_test o assert. |
+| `deckard to-md` | Convierte un ejercicio estructurado en un único Markdown interactivo con YAML frontmatter. |
+| `deckard from-md` | Importa un Markdown interactivo y reconstruye la estructura canónica de Deckard. |
+| `deckard export-web` | Genera páginas Web estáticas o MyST Markdown con soluciones desplegables. |
+| `deckard sanitizers`, `deckard audit-sanitizers` | Audita la solución modelo contra fugas de memoria (ASan) y comportamientos indefinidos (UBSan). |
+| `deckard acsl-tests` | Sintetiza casos de prueba a partir de contratos formales ACSL (requires/ensures). |
+| `deckard anki`, `deckard export-anki` | Exporta ejercicios y firmas a tarjetas mnemotécnicas Anki / Flashcards en formato TSV. |
+| `deckard rubric` | Calibra pesos de evaluación y genera especificaciones de rúbricas para Dredd y Markdown. |
+| `deckard init-io-files` | Inicializa plantillas y fixtures para ejercicios basados en flujos de archivos. |
+| `deckard select-prereqs` | Selecciona y filtra ejercicios del banco cuyos prerrequisitos temáticos estén satisfechos. |
+| `deckard check-terms` | Verifica la consistencia terminológica de consignas y detecta términos no válidos en C. |
+| `deckard diagram-memory` | Genera esquemas de memoria Stack/Heap con convenciones Bishop para enunciados. |
+| `deckard export-moodle` | Exporta ejercicios a formato Moodle XML para cuestionarios virtuales. |
+| `deckard find-duplicates` | Detecta redundancias y ejercicios duplicados en el banco según similitud léxica y estructural. |
+| `deckard lint-consigna` | Linter pedagógico de precondiciones y casos borde en consignas (NULL, vector vacío, archivos). |
+| `deckard scaffold` | Genera plantillas de esqueletos de código con andamiaje pedagógico graduado. |
+| `deckard bundle-offline` | Empaqueta guías y ejercicios en un bundle portable ZIP con visor web HTML/CSS 100% offline. |
+| `deckard check-tone` | Audita ambigüedades lingüísticas, dobles negaciones y consistencia de tono en consignas. |
+| `deckard checklist` | Genera listas de autoevaluación previas a la entrega en formato Markdown. |
+| `deckard check-signatures` | Valida la consistencia de firmas de función entre el enunciado y la solución canónica. |
+| `deckard license-manager` | Gestiona metadatos de autoría, licencias educativas y headers de copyright. |
+| `deckard failure-hints` | Brinda orientación pedagógica y preguntas guía ante fallas en tests o ejecución. |
+| `deckard bank` | Inspección del banco de ejercicios. |
+| `deckard verify` | Verificación pedagógica (ripley check), fuzzing (dredd) y arnés de pruebas (vasquez inject). |
+| `deckard tag` | Gestión y consulta de etiquetas (tags) en el banco. |
+| `deckard export` | Exportación multiformato (PDF, Markdown, HTML) y gestión de plantillas. |
+| `deckard guide` | Gestión, inspección y exportación de guías. |
+| `deckard spec` | Gestión, validación y composición de especificaciones de guías (GuiaSpec). |
+| `deckard improve` | Mejora y curaduría pedagógica de consignas y bancos de ejercicios con OpenCode. |
+
+Ayuda de cada comando: `deckard <comando> -h`.
+
+<!-- p1:referencia:fin -->
