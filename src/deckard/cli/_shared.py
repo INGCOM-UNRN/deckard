@@ -19,7 +19,8 @@ from rich.console import Console
 import typer
 import yaml
 
-from deckard.cli.errores import TyperConErrores
+from yutani.cli import TyperConErrores
+from yutani.textos import traducir
 
 from deckard.core.bank import (
     buscar_ejercicios,
@@ -33,6 +34,8 @@ from deckard import __version__
 from deckard.core.models import Ejercicio
 
 # La app raíz muestra los errores de datos como mensajes (N-ECO-05).
+# Ayuda y errores de Typer/Click en español, desde yutani (N-ECO-14).
+traducir()
 app = TyperConErrores(
     context_settings={"help_option_names": ["-h", "--help"]},
     name="deckard",

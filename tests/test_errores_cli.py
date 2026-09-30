@@ -12,7 +12,7 @@ import pytest
 import yaml
 
 from deckard.cli import app
-from deckard.cli.errores import describir_error
+from yutani.cli import describir_error  # la copia local de errores.py pasó a yutani (N-ECO-14)
 
 
 def _invocar(args, monkeypatch, tmp_path):
