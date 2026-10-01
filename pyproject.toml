@@ -54,9 +54,9 @@ languagetool = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/INGCOM-UNRN-P1/deckard"
-Repository = "https://github.com/INGCOM-UNRN-P1/deckard.git"
-Issues = "https://github.com/INGCOM-UNRN-P1/deckard/issues"
+Homepage = "https://github.com/INGCOM-UNRN/deckard"
+Repository = "https://github.com/INGCOM-UNRN/deckard.git"
+Issues = "https://github.com/INGCOM-UNRN/deckard/issues"
 
 [project.scripts]
 deckard = "deckard.cli:app"
