@@ -73,6 +73,18 @@ def _escribir_log_fallos(
     ruta_log.write_text("\n".join(lineas), encoding="utf-8")
 
 
+def _generador() -> Optional[List[str]]:
+    """El comando que genera los casos: `drake gen-casos` (drake es el dueño del fuzzing, N-ECO-12) o,
+    si no está instalado, `dredd fuzz-gen` (que se va a retirar)."""
+    import shutil as _shutil
+    if _shutil.which("drake"):
+        return [_shutil.which("drake") or "drake", "gen-casos"]
+    if _shutil.which("dredd"):
+        return [_shutil.which("dredd") or "dredd", "fuzz-gen"]
+    return None
+
+
+
 @verify_app.command("fuzz")
 @app.command("fuzz", hidden=True)
 def fuzz(
@@ -88,7 +100,7 @@ def fuzz(
     dry_run: bool = typer.Option(False, "--dry-run", help="Solo listar ejercicios que se procesarían sin ejecutar."),
     log_fallos: Optional[Path] = typer.Option(None, "--log-fallos", "-l", help="Ruta de archivo para guardar el reporte de ejercicios fallidos u omitidos."),
 ) -> None:
-    """Endurece los tests de ejercicios usando `dredd fuzz-gen` (soporta wildcards, batch y tracking de progreso)."""
+    """Endurece los tests de ejercicios con `drake gen-casos` (o `dredd fuzz-gen`) (soporta wildcards, batch y tracking de progreso)."""
     if ejercicio_id is None and not all_exercises and not tema and not bloom:
         console.print("[yellow]Especificá un id de ejercicio, un patrón comodín (ej: '*') o usá --all para todo el banco.[/yellow]")
         raise typer.Exit(code=1)
@@ -112,9 +124,8 @@ def fuzz(
         console.print(tabla)
         return
 
-    import shutil as _shutil
-    if _shutil.which("dredd") is None:
-        console.print("[red]'dredd' no está instalado en el PATH.[/red]")
+    if _generador() is None:
+        console.print("[red]Hace falta drake (o dredd) en el PATH para generar los casos.[/red]")
         raise typer.Exit(code=127)
 
 
@@ -134,10 +145,8 @@ def fuzz(
             raise typer.Exit(code=1)
 
         destino = dir_ej / "tests"
-        dredd_bin = _shutil.which("dredd") or "dredd"
         cmd_args = [
-            dredd_bin,
-            "fuzz-gen",
+            *_generador(),
             str(modelo),
             "-o",
             str(destino),
@@ -212,10 +221,8 @@ def fuzz(
                 continue
 
             destino = dir_ej / "tests"
-            dredd_bin = _shutil.which("dredd") or "dredd"
             cmd_args = [
-                dredd_bin,
-                "fuzz-gen",
+                *_generador(),
                 str(modelo),
                 "-o",
                 str(destino),

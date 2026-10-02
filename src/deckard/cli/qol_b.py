@@ -61,11 +61,27 @@ def cmd_diagram_memory(
     banco: Path = typer.Option(Path("banco"), "--banco", "-b", help="Directorio raíz del banco."),
 ) -> None:
     """Genera esquemas de memoria Stack/Heap con convenciones Bishop para enunciados."""
+    import shutil as _shutil
+    import subprocess as _subprocess
+
     from deckard.core.memory_diagram import inferir_diagrama_desde_ejercicio
 
     dir_ej = _resolver_dir_ejercicio(ejercicio_id, banco)
     ej = cargar_ejercicio(dir_ej)
-    diagrama = inferir_diagrama_desde_ejercicio(ej, formato=formato)
+    console.print("[yellow]Aviso:[/yellow] `deckard diagram-memory` pasa a bishop (`bishop diagram solucion.c`), "
+                  "el dueño de los diagramas de memoria (N-ECO-12); este comando se va a retirar.")
+    bishop = _shutil.which("bishop")
+    solucion = dir_ej / "solucion.c"
+    diagrama = None
+    if bishop and solucion.is_file() and formato in ("ascii", "mermaid"):
+        # La memoria real de la solución modelo, en lugar de un esquema inventado según el tema.
+        proc = _subprocess.run([bishop, "diagram", str(solucion), "--formato", formato],
+                               capture_output=True, text=True)
+        if proc.returncode == 0 and proc.stdout.strip():
+            diagrama = proc.stdout.strip()
+    if diagrama is None:
+        diagrama = inferir_diagrama_desde_ejercicio(ej, formato=formato)
+        console.print("[dim]Esquema ilustrativo (sin bishop o sin solucion.c): los valores no son los del programa.[/dim]")
 
     if salida:
         salida.parent.mkdir(parents=True, exist_ok=True)

@@ -114,9 +114,34 @@ def cmd_audit_sanitizers(
     banco: Path = typer.Option(Path("banco"), "--banco", "-b", help="Directorio raíz del banco."),
 ) -> None:
     """Audita la solución modelo contra fugas de memoria (ASan) y comportamientos indefinidos (UBSan)."""
-    from deckard.core.sanitizer_audit import auditar_solucion_sanitizers
+    import json as _json
+    import shutil as _shutil
+    import subprocess as _subprocess
+
+    from deckard.core.sanitizer_audit import ResultadoSanitizer, auditar_solucion_sanitizers
     dir_ej = _resolver_dir_ejercicio(target, banco)
-    res = auditar_solucion_sanitizers(dir_ej)
+    console.print("[yellow]Aviso:[/yellow] `deckard sanitizers` pasa a tetsuo (`tetsuo check solucion.c`), "
+                  "el dueño de los sanitizers (N-ECO-12); este comando se va a retirar.")
+    tetsuo = _shutil.which("tetsuo")
+    solucion = dir_ej / "solucion.c"
+    if tetsuo and solucion.is_file():
+        proc = _subprocess.run([tetsuo, "check", str(solucion), "--json"], capture_output=True, text=True)
+        try:
+            datos = _json.loads(proc.stdout)
+        except ValueError:
+            datos = None
+        if datos is not None:
+            titulos = [d.get("title_es", "") for d in datos.get("diagnoses", [])]
+            res = ResultadoSanitizer(
+                ejercicio=dir_ej.name, ok=bool(datos.get("ok")),
+                leak_detected=any(d.get("error_tag") == "memory-leak" for d in datos.get("diagnoses", [])),
+                ub_detected=any(d.get("sanitizer_type") == "UndefinedBehaviorSanitizer" for d in datos.get("diagnoses", [])),
+                detalle="tetsuo: sin violaciones" if datos.get("ok") else ("tetsuo: " + "; ".join(titulos) if titulos
+                                                                           else datos.get("raw_output", "")[:300]))
+        else:
+            res = auditar_solucion_sanitizers(dir_ej)
+    else:
+        res = auditar_solucion_sanitizers(dir_ej)
     if res.ok:
         console.print(f"[bold green]{res.marca} {res.ejercicio}:[/bold green] {res.detalle}")
     else:

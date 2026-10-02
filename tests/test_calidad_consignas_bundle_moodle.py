@@ -80,12 +80,15 @@ def test_memory_diagram(tmp_path: Path):
     assert 'subgraph STACK["Stack (Memoria Automática)"]' in diag_mermaid
     assert 'subgraph HEAP["Heap (Memoria Dinámica)"]' in diag_mermaid
 
-    # Test CLI
+    # Test CLI (sin bishop: el esquema ilustrativo; con bishop y solucion.c, la memoria real)
+    from unittest.mock import patch
     salida_txt = tmp_path / "diagrama.txt"
-    res = runner.invoke(app, ["diagram-memory", "ej-mem", "--banco", str(tmp_path), "-o", str(salida_txt)])
+    with patch("shutil.which", return_value=None):
+        res = runner.invoke(app, ["diagram-memory", "ej-mem", "--banco", str(tmp_path), "-o", str(salida_txt)])
     assert res.exit_code == 0
     assert salida_txt.is_file()
     assert "STACK" in salida_txt.read_text(encoding="utf-8")
+    assert "pasa a bishop" in res.stdout
 
 
 def test_export_moodle(tmp_path: Path):
