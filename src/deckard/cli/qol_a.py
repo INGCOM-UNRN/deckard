@@ -130,7 +130,9 @@ def cmd_audit_sanitizers(
             datos = _json.loads(proc.stdout)
         except ValueError:
             datos = None
-        if datos is not None:
+        # Sin instrumentar (no hay libasan, o la solución no compila sola) tetsuo no dice nada de la
+        # solución: se usa la auditoría propia, que sabe compilar el ejercicio con su main de prueba.
+        if datos is not None and datos.get("instrumented") is not False:
             titulos = [d.get("title_es", "") for d in datos.get("diagnoses", [])]
             res = ResultadoSanitizer(
                 ejercicio=dir_ej.name, ok=bool(datos.get("ok")),
