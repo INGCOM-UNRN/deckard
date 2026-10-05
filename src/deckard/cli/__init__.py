@@ -28,3 +28,7 @@ from deckard.cli import (  # noqa: F401  (el import registra los comandos vía s
     qol_a,
     qol_b,
 )
+
+# Después de registrar todo: cada comando suelto pasa a su grupo y el nombre viejo queda como alias
+# oculto con aviso (N-DECKARD-02).
+from deckard.cli import agrupacion  # noqa: E402,F401

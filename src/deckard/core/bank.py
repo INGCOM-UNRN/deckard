@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import yaml
+from pydantic import ValidationError
 
 from deckard.core.models import Ejercicio, GuiaSpec, NivelBloom, Seleccion
 
@@ -42,7 +43,14 @@ def cargar_ejercicio(dir_ejercicio: Path) -> Ejercicio:
     if not meta.is_file():
         raise FileNotFoundError(f"No se encontró {ARCHIVO_EJERCICIO} en {dir_ejercicio}")
     with open(meta, "r", encoding="utf-8") as f:
-        datos = yaml.safe_load(f) or {}
+        try:
+            datos = yaml.safe_load(f) or {}
+        except yaml.YAMLError as exc:
+            from deckard.core.esquema import EjercicioInvalido
+            raise EjercicioInvalido(meta, [f"no es YAML válido: {exc}"]) from None
+    if not isinstance(datos, dict):
+        from deckard.core.esquema import EjercicioInvalido
+        raise EjercicioInvalido(meta, ["el archivo tiene que ser un mapa de campos (id:, titulo:, …)."])
 
     enunciado_archivo = dir_ej / "enunciado.md"
     if enunciado_archivo.is_file():
@@ -55,7 +63,11 @@ def cargar_ejercicio(dir_ejercicio: Path) -> Ejercicio:
         datos["solucion_c"] = solucion_archivo.read_text(encoding="utf-8")
     else:
         datos.setdefault("solucion_c", "")
-    return Ejercicio(**datos)
+    try:
+        return Ejercicio(**datos)
+    except ValidationError as exc:
+        from deckard.core.esquema import error_en_espanol
+        raise error_en_espanol(exc, meta) from None
 
 
 def guardar_ejercicio(ejercicio: Ejercicio, dir_base: Path) -> Path:

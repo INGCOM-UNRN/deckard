@@ -1,0 +1,361 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ingcom-unrn-p1.github.io/deckard/ejercicio.schema.json",
+  "title": "ejercicio.yaml (deckard)",
+  "$defs": {
+    "CasoTestFuncion": {
+      "description": "Caso de prueba granular sobre la invocación directa de una función C.",
+      "properties": {
+        "nombre": {
+          "title": "Nombre",
+          "type": "string"
+        },
+        "funcion": {
+          "title": "Funcion",
+          "type": "string"
+        },
+        "descripcion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Descripcion"
+        },
+        "codigo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Codigo"
+        },
+        "args": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Args"
+        },
+        "retorno_esperado": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retorno Esperado"
+        },
+        "postcondiciones": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Postcondiciones"
+        }
+      },
+      "required": [
+        "nombre",
+        "funcion"
+      ],
+      "title": "CasoTestFuncion",
+      "type": "object"
+    },
+    "DiagramaSpec": {
+      "description": "Diagrama o esquema de estructura de datos asociado al enunciado.",
+      "properties": {
+        "nombre": {
+          "default": "Diagrama",
+          "title": "Nombre",
+          "type": "string"
+        },
+        "tipo": {
+          "default": "lista",
+          "title": "Tipo",
+          "type": "string"
+        },
+        "formato": {
+          "default": "ascii",
+          "title": "Formato",
+          "type": "string"
+        },
+        "contenido": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contenido"
+        }
+      },
+      "title": "DiagramaSpec",
+      "type": "object"
+    },
+    "FuncionSpec": {
+      "description": "Especificación de una función C requerida en el ejercicio.",
+      "properties": {
+        "nombre": {
+          "title": "Nombre",
+          "type": "string"
+        },
+        "retorno": {
+          "default": "void",
+          "title": "Retorno",
+          "type": "string"
+        },
+        "parametros": {
+          "default": "",
+          "title": "Parametros",
+          "type": "string"
+        },
+        "descripcion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Descripcion"
+        }
+      },
+      "required": [
+        "nombre"
+      ],
+      "title": "FuncionSpec",
+      "type": "object"
+    },
+    "NivelBloom": {
+      "description": "Taxonomía de Bloom recortada a la cátedra.",
+      "enum": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "title": "NivelBloom",
+      "type": "integer"
+    }
+  },
+  "description": "Un ejercicio práctico versionado como unidad atómica de cátedra.",
+  "properties": {
+    "id": {
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "titulo": {
+      "title": "Titulo",
+      "type": "string"
+    },
+    "tema": {
+      "title": "Tema",
+      "type": "string"
+    },
+    "bloom": {
+      "$ref": "#/$defs/NivelBloom"
+    },
+    "minutos": {
+      "maximum": 600,
+      "minimum": 1,
+      "title": "Minutos",
+      "type": "integer"
+    },
+    "enunciado": {
+      "default": "",
+      "title": "Enunciado",
+      "type": "string"
+    },
+    "solucion_c": {
+      "default": "",
+      "title": "Solucion C",
+      "type": "string"
+    },
+    "starter_code": {
+      "default": "",
+      "title": "Starter Code",
+      "type": "string"
+    },
+    "pistas": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Pistas",
+      "type": "array"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "verificado": {
+      "default": false,
+      "title": "Verificado",
+      "type": "boolean"
+    },
+    "funciones": {
+      "items": {
+        "$ref": "#/$defs/FuncionSpec"
+      },
+      "title": "Funciones",
+      "type": "array"
+    },
+    "tests_funciones": {
+      "items": {
+        "$ref": "#/$defs/CasoTestFuncion"
+      },
+      "title": "Tests Funciones",
+      "type": "array"
+    },
+    "tests_ocultos": {
+      "description": "Casos de prueba ocultos para autograding ciego.",
+      "items": {
+        "$ref": "#/$defs/CasoTestFuncion"
+      },
+      "title": "Tests Ocultos",
+      "type": "array"
+    },
+    "benchmarks": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Límites o benchmarks de rendimiento de tiempo y memoria.",
+      "title": "Benchmarks",
+      "type": "object"
+    },
+    "rubrica": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Ponderación porcentual de criterios de evaluación.",
+      "title": "Rubrica"
+    },
+    "acsl_contratos": {
+      "description": "Especificaciones formales ACSL.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Acsl Contratos",
+      "type": "array"
+    },
+    "archivos_prueba": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Archivos de prueba requeridos (ej. binarios, csv, stdin/stdout fixtures).",
+      "title": "Archivos Prueba",
+      "type": "object"
+    },
+    "diagramas": {
+      "description": "Diagramas de estructuras de datos (ascii, mermaid, plantuml).",
+      "items": {
+        "$ref": "#/$defs/DiagramaSpec"
+      },
+      "title": "Diagramas",
+      "type": "array"
+    },
+    "tipo_entrega": {
+      "default": "archivos_individuales",
+      "description": "Tipo de entrega / modo de construcción: 'archivos_individuales', 'makefile', 'libreria', 'proyecto'",
+      "title": "Tipo Entrega",
+      "type": "string"
+    },
+    "familia": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Identificador de la familia o grupo de ejercicios relacionados (ej. 'tda_lista', 'lib_string').",
+      "title": "Familia"
+    },
+    "rol_familia": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Rol dentro de la familia: 'libreria' (TDA/módulo), 'tests' (pruebas unitarias), 'uso'/'app' (aplicación cliente).",
+      "title": "Rol Familia"
+    },
+    "dependencias": {
+      "description": "IDs de ejercicios requeridos previamente.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Dependencias",
+      "type": "array"
+    },
+    "archivos_adicionales": {
+      "description": "Archivos de cabecera, Makefile o datos adicionales.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Archivos Adicionales",
+      "type": "array"
+    },
+    "archivos": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Mapeo de nombre de archivo a contenido.",
+      "title": "Archivos",
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "titulo",
+    "tema",
+    "bloom",
+    "minutos"
+  ],
+  "type": "object"
+}

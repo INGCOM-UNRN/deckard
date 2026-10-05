@@ -332,3 +332,20 @@ def cmd_browse(
     mostrar_vista_resumen_ejercicios(ejs, console=console)
 
 
+
+
+@bank_app.command("schema")
+def cmd_bank_schema(
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Archivo donde guardar el JSON Schema (si no, se imprime)."),
+) -> None:
+    """JSON Schema de ejercicio.yaml, para que el editor valide mientras se escribe."""
+    import json as _json
+
+    from deckard.core.esquema import esquema_json
+
+    texto = _json.dumps(esquema_json(), indent=2, ensure_ascii=False) + "\n"
+    if output:
+        output.write_text(texto, encoding="utf-8")
+        console.print(f"[green]✓ Esquema guardado en {output}[/green]")
+    else:
+        print(texto, end="")
