@@ -48,10 +48,10 @@ def show_ejercicio(
 
     matches = buscar_ejercicios(banco, patron=ejercicio_id, recursivo=True)
     if not matches:
-        p = Path(ejercicio_id)
-        if (p / "ejercicio.yaml").is_file():
-            dir_ej = p
-            ej = cargar_ejercicio(p)
+        ruta_ej = Path(ejercicio_id)
+        if (ruta_ej / "ejercicio.yaml").is_file():
+            dir_ej = ruta_ej
+            ej = cargar_ejercicio(ruta_ej)
         else:
             console.print(f"[red]No se encontró el ejercicio '{ejercicio_id}'.[/red]")
             raise typer.Exit(code=1)

@@ -16,7 +16,7 @@ from deckard.core.guides import (
     cargar_guia_con_ejercicios,
     guardar_yaml_guia,
 )
-from deckard.core.models import Ejercicio, GuiaSpec, NivelBloom
+from deckard.core.models import Ejercicio, NivelBloom
 
 from deckard.cli._shared import (
     app,
@@ -97,7 +97,7 @@ def cmd_check_load(
         idx = 1
         while restante > 0:
             m = min(restante, 300)
-            ejercicios.append(Ejercicio(id=f"ej_{idx}", titulo=f"Ejercicio {idx}", tema="general", bloom=NivelBloom.APLICAR, minutos=m, enunciado="..."))
+            ejercicios.append(Ejercicio(id=f"ej_{idx}", titulo=f"Ejercicio {idx}", tema="general", bloom=NivelBloom.APLICAR, minutos_estimados=m, enunciado_md="..."))
             restante -= m
             idx += 1
 
@@ -136,14 +136,16 @@ def cmd_variant(
 
     console.print(tabla)
 
-    nueva_spec = GuiaSpec(
-        id=f"{datos.get('id', 'guia')}_recuperatorio",
-        nombre=f"{datos.get('nombre', 'Guía')} (Variante Recuperatorio)",
-        materia=datos.get("materia", "Programación 1"),
-        ejercicios=[v.id for v in variantes],
-        tiempo_total_estimado=sum(v.minutos_estimados for v in variantes),
-    )
-    guardar_yaml_guia(nueva_spec, salida)
+    # La variante es una guía como la original (mismo formato YAML) con los ejercicios homólogos.
+    nueva_guia = dict(datos)
+    nueva_guia.update({
+        "id": f"{datos.get('id', 'guia')}_recuperatorio",
+        "nombre": f"{datos.get('nombre', 'Guía')} (Variante Recuperatorio)",
+        "materia": datos.get("materia", "Programación 1"),
+        "ejercicios": [v.id for v in variantes],
+        "tiempo_total_estimado": sum(v.minutos_estimados for v in variantes),
+    })
+    guardar_yaml_guia(salida, nueva_guia)
     console.print(f"\n[bold green]✓ Guía variante guardada en:[/bold green] [cyan]{salida}[/cyan]")
 
 

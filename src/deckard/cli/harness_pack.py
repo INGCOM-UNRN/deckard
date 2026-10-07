@@ -155,7 +155,8 @@ def multiplex(
                     str(asig.variante.parametros),
                 )
             console.print(tabla)
-            console.print(f"  ↳ Planilla completa en: [bold]{resultado.output_dir / 'asignaciones.csv'}[/bold]")
+            if resultado.output_dir is not None:
+                console.print(f"  ↳ Planilla completa en: [bold]{resultado.output_dir / 'asignaciones.csv'}[/bold]")
 
     except Exception as e:
         console.print(f"[red]Error durante la multiplexación: {e}[/red]")

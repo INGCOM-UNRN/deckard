@@ -46,9 +46,9 @@ def generar_notebook_ejercicio(ej: Ejercicio) -> Dict[str, Any]:
     if ej.tests_funciones:
         test_code_lines = ["// Pruebas unitarias de cátedra\n"]
         for tc in ej.tests_funciones:
-            args_str = ", ".join(tc.argumentos)
+            args_str = tc.args or ""
             test_code_lines.append(f"// Caso: {tc.nombre}\n")
-            test_code_lines.append(f"// Invocación esperada: {ej.funciones[0].nombre if ej.funciones else 'fn'}({args_str}) == {tc.esperado}\n")
+            test_code_lines.append(f"// Invocación esperada: {ej.funciones[0].nombre if ej.funciones else 'fn'}({args_str}) == {tc.retorno_esperado}\n")
         celdas.append({
             "cell_type": "code",
             "execution_count": None,

@@ -3,24 +3,23 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from rich.table import Table
 import typer
 
+from deckard.core.models import Ejercicio
 from deckard.core.bank import (
     buscar_ejercicios,
     cargar_ejercicio,
     listar_ejercicios,
 )
-from deckard.core.guides import (
-    cargar_guia_con_ejercicios,
-    resolver_ruta_guia,
-)
+from deckard.core.guides import resolver_ruta_guia
 
 from deckard.cli._shared import (
     app,
     console,
+    _ejercicios_de_guia,
     _resolver_dir_ejercicio,
 )
 
@@ -83,14 +82,13 @@ def cmd_export_web(
     """Genera páginas Web estáticas o MyST Markdown con soluciones desplegables."""
     from deckard.core.web_export import exportar_web_estatica
 
-    ejercicios = []
+    ejercicios: List[Ejercicio] = []
     titulo = "Guía de Ejercicios Prácticos"
 
     p_guia = resolver_ruta_guia(Path(target)) if Path(target).exists() or target.endswith(".yaml") else None
     if p_guia and p_guia.is_file():
-        info = cargar_guia_con_ejercicios(p_guia, banco)
-        ejercicios = info.ejercicios
-        titulo = info.guia.nombre or p_guia.stem
+        datos_guia, ejercicios = _ejercicios_de_guia(p_guia, banco)
+        titulo = datos_guia.get("nombre") or p_guia.stem
     elif target.lower() == "all":
         ejercicios = listar_ejercicios(banco)
     else:
@@ -190,8 +188,7 @@ def cmd_export_anki(
     ejercicios = []
     p_guia = resolver_ruta_guia(Path(target)) if Path(target).exists() or target.endswith(".yaml") else None
     if p_guia and p_guia.is_file():
-        info = cargar_guia_con_ejercicios(p_guia, banco)
-        ejercicios = info.ejercicios
+        ejercicios = _ejercicios_de_guia(p_guia, banco)[1]
     elif target.lower() == "all":
         ejercicios = listar_ejercicios(banco)
     else:
@@ -231,8 +228,7 @@ def cmd_rubric(
     ejercicios = []
     p_guia = resolver_ruta_guia(Path(target)) if Path(target).exists() or target.endswith(".yaml") else None
     if p_guia and p_guia.is_file():
-        info = cargar_guia_con_ejercicios(p_guia, banco)
-        ejercicios = info.ejercicios
+        ejercicios = _ejercicios_de_guia(p_guia, banco)[1]
     else:
         dir_ej = _resolver_dir_ejercicio(target, banco)
         ejercicios = [cargar_ejercicio(dir_ej)]

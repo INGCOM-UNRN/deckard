@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -208,7 +209,7 @@ def auditar_solucion_sanitizers(
             input_bytes = tests_in[0].read_bytes()
 
         env_asan = {
-            **subprocess.os.environ,
+            **os.environ,
             "ASAN_OPTIONS": "detect_leaks=1:abort_on_error=1",
             "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1",
         }

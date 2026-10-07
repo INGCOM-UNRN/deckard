@@ -387,7 +387,9 @@ def empaquetar_guia(
 
     resultados: List[ResultadoEmpaquetado] = []
     for item in ejercicios_spec:
-        eid = item.get("id") if isinstance(item, dict) else str(item)
+        eid = str(item.get("id") or "") if isinstance(item, dict) else str(item)
+        if not eid:
+            raise PackError(f"La guía {ruta_yaml} tiene un ejercicio sin id: {item!r}.")
         matches = buscar_ejercicios(banco, patron=eid, recursivo=True)
         if not matches:
             raise PackError(f"Ejercicio '{eid}' de la guía no encontrado en el banco {banco}.")

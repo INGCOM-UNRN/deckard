@@ -19,13 +19,12 @@ def buscar_ejecutable_opencode(usar_sandbox: bool = True) -> Tuple[Optional[str]
     Retorna una tupla (ruta_ejecutable, es_sandboxed).
     """
     if usar_sandbox:
-        cand_sandboxed = shutil.which("opencode-sandboxed") or "/home/mrtin/bin/opencode-sandboxed"
+        cand_sandboxed = shutil.which("opencode-sandboxed") or os.path.expanduser("~/bin/opencode-sandboxed")
         if cand_sandboxed and os.path.exists(cand_sandboxed) and os.access(cand_sandboxed, os.X_OK):
             return str(cand_sandboxed), True
 
     cand_direct = (
         shutil.which("opencode")
-        or "/home/mrtin/.opencode/bin/opencode"
         or os.path.expanduser("~/.opencode/bin/opencode")
     )
     if cand_direct and os.path.exists(cand_direct) and os.access(cand_direct, os.X_OK):
@@ -37,9 +36,8 @@ def buscar_ejecutable_opencode(usar_sandbox: bool = True) -> Tuple[Optional[str]
 def listar_modelos_opencode(provider: Optional[str] = None, timeout: int = 15) -> List[str]:
     """Interroga al CLI de OpenCode para obtener la lista de modelos disponibles."""
     # Para listar modelos usamos directamente el binario opencode
-    cand_direct = (
+    cand_direct: Optional[str] = (
         shutil.which("opencode")
-        or "/home/mrtin/.opencode/bin/opencode"
         or os.path.expanduser("~/.opencode/bin/opencode")
     )
     if not (cand_direct and os.path.exists(cand_direct) and os.access(cand_direct, os.X_OK)):

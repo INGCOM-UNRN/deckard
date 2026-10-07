@@ -28,7 +28,7 @@ class EjercicioInvalido(ValueError):
 
 
 def _campo(loc) -> str:
-    partes = []
+    partes: List[str] = []
     for p in loc:
         partes.append(f"[{p}]" if isinstance(p, int) else (("." if partes else "") + str(p)))
     return "".join(partes) or "(raíz)"
@@ -66,7 +66,7 @@ def traducir(error: Dict[str, Any]) -> str:
 
 
 def error_en_espanol(exc: ValidationError, archivo: Path) -> EjercicioInvalido:
-    return EjercicioInvalido(archivo, [traducir(e) for e in exc.errors()])
+    return EjercicioInvalido(archivo, [traducir(dict(e)) for e in exc.errors()])
 
 
 def esquema_json() -> Dict[str, Any]:

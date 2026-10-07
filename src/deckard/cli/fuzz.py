@@ -124,7 +124,8 @@ def fuzz(
         console.print(tabla)
         return
 
-    if _generador() is None:
+    generador = _generador()
+    if generador is None:
         console.print("[red]Hace falta drake (o dredd) en el PATH para generar los casos.[/red]")
         raise typer.Exit(code=127)
 
@@ -146,7 +147,7 @@ def fuzz(
 
         destino = dir_ej / "tests"
         cmd_args = [
-            *_generador(),
+            *generador,
             str(modelo),
             "-o",
             str(destino),
@@ -222,7 +223,7 @@ def fuzz(
 
             destino = dir_ej / "tests"
             cmd_args = [
-                *_generador(),
+                *generador,
                 str(modelo),
                 "-o",
                 str(destino),

@@ -80,10 +80,12 @@ def aplicar() -> None:
         if destino is None:
             continue
         grupo_nombre, nuevo = destino
+        if info.callback is None:
+            continue
         grupo = GRUPOS[grupo_nombre]
         if all(c.name != nuevo for c in grupo.registered_commands):
             grupo.command(nuevo, help=info.help)(info.callback)
-        info.callback = _con_aviso(info.callback, info.name, f"{grupo_nombre} {nuevo}")
+        info.callback = _con_aviso(info.callback, info.name or "", f"{grupo_nombre} {nuevo}")
         info.hidden = True
 
 

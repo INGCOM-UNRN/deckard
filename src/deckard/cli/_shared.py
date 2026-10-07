@@ -13,7 +13,7 @@ from pathlib import Path
 import subprocess
 import shlex
 import shutil
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from rich.console import Console
 import typer
@@ -158,16 +158,20 @@ def _resolver_dir_ejercicio(ejercicio_id: str, banco: Path) -> Path:
     raise typer.BadParameter(f"No se encontró el ejercicio '{ejercicio_id}' en {banco}.")
 
 
+def _ejercicios_de_guia(p_guia: Path, banco: Path) -> Tuple[dict, List[Ejercicio]]:
+    """Metadatos de la guía y sus ejercicios encontrados en el banco (sin los que faltan)."""
+    datos, items = cargar_guia_con_ejercicios(p_guia, banco)
+    return datos, [ej for _, ej in items if ej is not None]
+
+
 def _cargar_ejercicios_target(target: str, banco: Path) -> List[Ejercicio]:
     p = Path(target)
     if p.is_file() and p.suffix in (".yaml", ".yml"):
-        info = cargar_guia_con_ejercicios(p, banco)
-        return info.ejercicios
+        return _ejercicios_de_guia(p, banco)[1]
     if (banco / target).is_file() or (banco / f"{target}.yaml").is_file():
         p_guia = resolver_ruta_guia(Path(target))
         if p_guia.is_file():
-            info = cargar_guia_con_ejercicios(p_guia, banco)
-            return info.ejercicios
+            return _ejercicios_de_guia(p_guia, banco)[1]
     if p.is_dir() and (p == banco or p.resolve() == banco.resolve()):
         tuplas = buscar_ejercicios(banco, recursivo=True)
         return [cargar_ejercicio(t[0]) for t in tuplas]

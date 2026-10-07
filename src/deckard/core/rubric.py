@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from deckard.core.models import Ejercicio
 
@@ -84,7 +84,7 @@ def exportar_rubrica_dredd_json(
     """Exporta el esquema de rúbrica a JSON compatible con el motor de autograding Dredd."""
     pesos_calibrados = calibrar_pesos_rubrica(pesos)
 
-    config_dredd = {
+    config_dredd: Dict[str, Any] = {
         "version": "1.0",
         "tipo": "rubrica_autograding",
         "criterios_globales": pesos_calibrados,

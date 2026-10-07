@@ -15,7 +15,7 @@ from deckard.core.guides import (
     listar_specs,
     validar_spec,
 )
-from deckard.core.models import GuiaSpec
+from deckard.core.models import GuiaSpec, NivelBloom
 
 from deckard.cli._shared import (
     console,
@@ -192,9 +192,9 @@ def spec_edit(
     if temas is not None:
         spec.temas = [t.strip() for t in temas.split(",") if t.strip()]
     if bloom_min is not None:
-        spec.bloom_min = bloom_min
+        spec.bloom_min = NivelBloom(bloom_min)
     if bloom_max is not None:
-        spec.bloom_max = bloom_max
+        spec.bloom_max = NivelBloom(bloom_max)
     if cantidad_max is not None:
         spec.cantidad_maxima = cantidad_max
 
