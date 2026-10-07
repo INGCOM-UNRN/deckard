@@ -352,7 +352,7 @@ def compilar_typst_a_pdf(
                 check=False
             )
             if res.returncode != 0:
-                raise RuntimeError(f"Error compilando Typst a PDF: {res.stderr or e_py}")
+                raise RuntimeError(f"Error compilando Typst a PDF: {res.stderr or e_py}") from e_py
             return salida_pdf
     finally:
         if tmp_path.exists():

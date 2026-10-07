@@ -100,7 +100,7 @@ def generar_diagrama_memoria_mermaid(
 
     if heap:
         lineas.append('    subgraph HEAP["Heap (Memoria Dinámica)"]')
-        for b_idx, b in enumerate(heap):
+        for _b_idx, b in enumerate(heap):
             node_id = b.direccion.replace("0x", "H_")
             vals_str = ", ".join(b.valores) if b.valores else "datos"
             lineas.append(f'        {node_id}["{b.direccion} [{b.tamano_bytes}B]<br/>{b.tipo_contenido}: [{vals_str}]"]')

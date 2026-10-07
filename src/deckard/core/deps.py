@@ -115,7 +115,7 @@ def build_dependency_graph(exercises: List[Tuple[Path, Ejercicio]]) -> Dependenc
     graph = DependencyGraph()
 
     # 1. Crear nodos
-    for p, ej in exercises:
+    for _p, ej in exercises:
         graph.nodes[ej.id] = ExerciseNode(
             id=ej.id,
             titulo=ej.titulo,
@@ -124,7 +124,7 @@ def build_dependency_graph(exercises: List[Tuple[Path, Ejercicio]]) -> Dependenc
         )
 
     # 2. Conectar dependencias explícitas en yaml
-    for p, ej in exercises:
+    for _p, ej in exercises:
         # Prerrequisitos explícitos si existen en metadata
         explicit_prereqs = getattr(ej, "prerrequisitos", None) or []
         for prereq in explicit_prereqs:
@@ -138,7 +138,7 @@ def build_dependency_graph(exercises: List[Tuple[Path, Ejercicio]]) -> Dependenc
         theme_buckets.setdefault(t, []).append((p, ej))
 
     # Conectar progresiones de Bloom dentro del mismo tema
-    for theme, ejs_list in theme_buckets.items():
+    for _theme, ejs_list in theme_buckets.items():
         sorted_ejs = sorted(ejs_list, key=lambda x: (x[1].bloom.value if hasattr(x[1].bloom, "value") else int(x[1].bloom), x[1].id))
         for i in range(len(sorted_ejs) - 1):
             source_ej = sorted_ejs[i][1]

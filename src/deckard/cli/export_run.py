@@ -82,7 +82,7 @@ def _pdf_con_fallback(
             return pdf_path
         except Exception as e:
             console.print(f"[red]Error exportando PDF: {e_typst or e}[/red]")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from e
 
 
 def exportar_guia(opts: OpcionesExport, guia_meta: dict, items: List[Any], salida: Optional[Path], nombre_base: str, prefijo: str) -> None:
@@ -211,8 +211,8 @@ def exportar_varios_ejercicios(opts: OpcionesExport, candidatos: List[Any], sali
             elif fmt == "pdf":
                 _pdf_con_fallback(
                     opts, file_dest,
-                    lambda: _ejercicio_typst(opts, dir_ej, ej),
-                    lambda: _ejercicio_html(opts, dir_ej, ej),
+                    lambda dir_ej=dir_ej, ej=ej: _ejercicio_typst(opts, dir_ej, ej),
+                    lambda dir_ej=dir_ej, ej=ej: _ejercicio_html(opts, dir_ej, ej),
                     "",
                     tolerante=True,
                 )

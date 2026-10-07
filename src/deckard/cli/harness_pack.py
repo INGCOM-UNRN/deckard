@@ -112,7 +112,7 @@ def pack(
 
     except PackError as e:
         console.print(f"[red]Error de empaquetado: {e}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command("multiplex")
@@ -159,6 +159,6 @@ def multiplex(
 
     except Exception as e:
         console.print(f"[red]Error durante la multiplexación: {e}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 

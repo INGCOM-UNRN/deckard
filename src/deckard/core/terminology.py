@@ -89,7 +89,7 @@ def verificar_consistencia_terminologica(
     texto_lower = texto.lower()
 
     # 1. Chequeo de términos no aplicables al paradigma procedimental de C
-    for patron, term_enc, term_sug, motivo in TERMINOS_INADECUADOS_C:
+    for patron, _term_enc, term_sug, motivo in TERMINOS_INADECUADOS_C:
         matches = list(re.finditer(patron, texto_lower))
         for m in matches:
             inicio = max(0, m.start() - 30)

@@ -125,7 +125,7 @@ def generar_variantes(spec: MatrizSpec) -> List[Variante]:
 
     variantes: List[Variante] = []
     for idx, vals in enumerate(vals_list):
-        ctx: Dict[str, Any] = dict(zip(keys, vals))
+        ctx: Dict[str, Any] = dict(zip(keys, vals, strict=False))
         ctx["titulo"] = spec.titulo
         ctx["ejercicio"] = spec.ejercicio
         ctx["variante_idx"] = idx
@@ -165,7 +165,7 @@ def generar_variantes(spec: MatrizSpec) -> List[Variante]:
 
         # Tests
         rendered_tests: List[Tuple[str, str]] = []
-        for t_idx, t in enumerate(spec.tests_template, 1):
+        for _t_idx, t in enumerate(spec.tests_template, 1):
             in_raw = t.get("in", t.get("entrada", ""))
             out_raw = t.get("out", t.get("salida", ""))
             rendered_tests.append((

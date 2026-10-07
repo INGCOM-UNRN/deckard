@@ -83,7 +83,7 @@ def _ejecutar_mejora_cli(
                 )
             except Exception as e:
                 console.print(f"[bold red]Error al invocar OpenCode:[/bold red] {e}")
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=1) from e
 
         if diff and diff_txt:
             console.print(Syntax(diff_txt, "diff", theme="monokai", line_numbers=True))
@@ -133,7 +133,7 @@ def _ejecutar_mejora_cli(
                 )
             except Exception as e:
                 console.print(f"[bold red]Error al ejecutar OpenCode:[/bold red] {e}")
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=1) from e
 
         if diff and res.diff:
             console.print(Syntax(res.diff, "diff", theme="monokai", line_numbers=True))
@@ -468,7 +468,7 @@ def improve_models(
         modelos = listar_modelos_opencode(provider=provider)
     except Exception as e:
         console.print(f"[bold red]Error al interrogar modelos de OpenCode:[/bold red] {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     if not modelos:
         console.print("[yellow]No se obtuvieron modelos desde OpenCode.[/yellow]")

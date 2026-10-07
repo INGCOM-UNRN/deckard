@@ -102,7 +102,7 @@ def guide_show(
         tabla.add_column("Min", justify="right")
         tabla.add_column("Verificado", justify="center")
 
-        for i, (dir_ej, ej) in enumerate(items, 1):
+        for i, (_dir_ej, ej) in enumerate(items, 1):
             if ej:
                 tabla.add_row(
                     str(i), ej.id, ej.titulo, ej.tema,
@@ -114,7 +114,7 @@ def guide_show(
         console.print(tabla)
 
         if enunciados or soluciones or pistas:
-            for i, (dir_ej, ej) in enumerate(items, 1):
+            for i, (_dir_ej, ej) in enumerate(items, 1):
                 if not ej:
                     continue
                 console.print(f"\n[bold underline]Ejercicio {i}: {ej.titulo}[/bold underline] ([cyan]{ej.id}[/cyan])")
@@ -197,7 +197,7 @@ def guide_add(
         console.print(f"  Total ejercicios: {len(datos.get('ejercicios', []))} · Carga total: ~{datos.get('minutos_totales', 0)} min")
     except Exception as e:
         console.print(f"[red]Error al agregar ejercicio: {e}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @guide_app.command("remove")
@@ -218,7 +218,7 @@ def guide_remove(
         console.print(f"  Total ejercicios: {len(datos.get('ejercicios', []))} · Carga total: ~{datos.get('minutos_totales', 0)} min")
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @guide_app.command("verify")

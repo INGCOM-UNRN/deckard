@@ -25,7 +25,7 @@ def mostrar_vista_resumen_ejercicios(ejercicios: List[Tuple[Path, Ejercicio]], c
     tabla.add_column("Tags", style="green")
     tabla.add_column("Verificado", justify="center")
 
-    for dir_p, ej in ejercicios:
+    for _dir_p, ej in ejercicios:
         verif_str = "[bold green]✓[/bold green]" if ej.verificado else "[dim red]✗[/dim red]"
         tiempo_str = f"{ej.tiempo_estimado} min"
         tags_str = ", ".join(ej.tags[:3]) if ej.tags else "-"

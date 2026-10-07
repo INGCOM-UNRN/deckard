@@ -284,7 +284,7 @@ def cmd_unpack(
         console.print(f"[bold green]✓ Paquete extraído con éxito en:[/bold green] {out}")
     except Exception as e:
         console.print(f"[bold red]Error al desempaquetar:[/bold red] {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command("doctor")

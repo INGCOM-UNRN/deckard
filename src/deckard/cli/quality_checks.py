@@ -125,7 +125,7 @@ def cmd_spellcheck(
         )
     except ModuleNotFoundError as error:
         console.print(f"[bold red]Error:[/bold red] {error}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from error
 
     reglas_ign = set(r.strip() for r in ignore_rules.split(",") if r.strip()) if ignore_rules else None
     palabras_ign = set(w.strip() for w in ignore_words.split(",") if w.strip()) if ignore_words else None
