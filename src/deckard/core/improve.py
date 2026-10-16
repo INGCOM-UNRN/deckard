@@ -13,6 +13,10 @@ import yaml
 
 from deckard.core.bank import ARCHIVO_EJERCICIO, cargar_ejercicio, guardar_ejercicio
 from deckard.core.models import Ejercicio, NivelBloom
+from deckard.core.contexto_ia import (
+    SECCIONES, contexto_ejercicio, insertar_seccion, lote_gift, rearmar_gift, reponer_marcas, separar_gift,
+    separar_marcas,
+)
 from deckard.core.ia import consultar_ia, extraer_bloque_codigo
 
 
@@ -65,8 +69,7 @@ def _obtener_instruccion_aspecto(aspecto: AspectoMejora, ej: Ejercicio) -> str:
 - Cadenas vacías o caracteres de terminación '\\0'.
 - Desbordes aritméticos, división por cero o fin de archivo (EOF).
 - Definí con total exactitud el valor de retorno esperado o comportamiento del sistema ante cada caso borde.
-- Integrá estos casos límite de forma clara en el enunciado (ej. en una sección '### Casos Límite y Precondiciones').
-- Devolvé únicamente el texto completo del enunciado mejorado en Markdown.
+- Devolvé únicamente la sección '### Casos Límite y Precondiciones' en Markdown (se agrega al enunciado, o reemplaza la que ya tenga); no repitas el resto del enunciado.
 """
 
     if aspecto == AspectoMejora.EXAMPLES:
@@ -76,7 +79,7 @@ def _obtener_instruccion_aspecto(aspecto: AspectoMejora, ej: Ejercicio) -> str:
   2. Caso límite o extremo (vector vacío, 1 elemento, valor borde).
   3. Caso de error o condición especial.
 - Utilizá bloques de código o tablas claras que muestren: Entradas -> Salida / Estado resultante -> Breve explicación.
-- Devolvé únicamente el texto completo del enunciado mejorado en Markdown con los nuevos ejemplos incorporados.
+- Devolvé únicamente la sección '### Ejemplos' en Markdown (se agrega al enunciado, o reemplaza la que ya tenga); no repitas el resto del enunciado.
 """
 
     if aspecto == AspectoMejora.HINTS:
@@ -149,27 +152,8 @@ def construir_prompt_ejercicio(
     """Construye el prompt completo para el modelo sobre un ejercicio."""
     instruccion_aspecto = _obtener_instruccion_aspecto(aspecto, ejercicio)
 
-    partes = [
-        f"Ejercicio ID: {ejercicio.id}",
-        f"Título: {ejercicio.titulo}",
-        f"Tema: {ejercicio.tema}",
-        f"Nivel Bloom: {NOMBRES_BLOOM.get(ejercicio.bloom, str(ejercicio.bloom))}",
-        f"Duración estimada: {ejercicio.minutos_estimados} minutos",
-    ]
-
-    if ejercicio.funciones:
-        firmas = "\n".join(f"- `{f.firma}`: {f.descripcion or ''}" for f in ejercicio.funciones)
-        partes.append(f"\nFunciones C requeridas:\n{firmas}")
-
-    if ejercicio.pistas:
-        pistas_txt = "\n".join(f"- {p}" for p in ejercicio.pistas)
-        partes.append(f"\nPistas actuales:\n{pistas_txt}")
-
-    if ejercicio.enunciado_md:
-        partes.append(f"\n--- ENUNCIADO ACTUAL ---\n{ejercicio.enunciado_md}\n--- FIN ENUNCIADO ACTUAL ---")
-
-    if ejercicio.solucion_c:
-        partes.append(f"\n--- SOLUCIÓN MODELO (REFERENCIA) ---\n```c\n{ejercicio.solucion_c[:1500]}\n```\n--- FIN SOLUCIÓN ---")
+    # Sólo los campos que usa el aspecto (ver core/contexto_ia.py): menos tokens de entrada.
+    partes = contexto_ejercicio(ejercicio, aspecto.value, NOMBRES_BLOOM.get(ejercicio.bloom, str(ejercicio.bloom)))
 
     prompt_custom_txt = ""
     if prompt_file and prompt_file.is_file():
@@ -203,7 +187,8 @@ Aspecto solicitado: '{aspecto.value}'.
 - Mejorá la claridad de la consigna o enunciado eliminando ambigüedades.
 - Asegurá que los distractores sean plausibles pero pedagógicamente incorrectos.
 - Incorporá o enriquecé las explicaciones de retroalimentación (# feedback) para cada opción.
-- Devolvé únicamente el contenido en formato GIFT listo para importar.
+- Devolvé cada pregunta precedida por la misma línea '--- PREGUNTA n ---', sin comentarios ni
+  categorías (se conservan aparte) y sin explicaciones.
 """
     prompt_custom_txt = ""
     if prompt_file and prompt_file.is_file():
@@ -211,8 +196,10 @@ Aspecto solicitado: '{aspecto.value}'.
     elif custom_prompt:
         prompt_custom_txt = custom_prompt.strip()
 
+    # Sin comentarios ni $CATEGORY: sólo los cuerpos de las preguntas, numerados.
+    preguntas, _ = separar_gift(texto_gift)
     prompt = (
-        f"### BANCO DE PREGUNTAS GIFT:\n```gift\n{texto_gift}\n```\n\n"
+        f"### PREGUNTAS GIFT:\n{lote_gift(preguntas)}\n\n"
         f"### INSTRUCCIONES:\n{instrucciones}"
     )
     if prompt_custom_txt:
@@ -264,9 +251,18 @@ def procesar_respuesta_ia(
     ):
         anterior = ej.enunciado_md
         # Extraer markdown cercado si lo envolvió
-        nuevo = extraer_bloque_codigo(respuesta_ia, "markdown")
-        if nuevo == respuesta_ia and respuesta_ia.startswith("```"):
-            nuevo = extraer_bloque_codigo(respuesta_ia)
+        devuelto = extraer_bloque_codigo(respuesta_ia, "markdown")
+        if devuelto == respuesta_ia and respuesta_ia.startswith("```"):
+            devuelto = extraer_bloque_codigo(respuesta_ia)
+        prefijo, cuerpo, sufijo = separar_marcas(ej.enunciado_md)
+        encabezado = SECCIONES.get(aspecto.value)
+        # edge-cases y examples devuelven sólo su sección; si el modelo devolvió el enunciado
+        # entero (empieza como el original), se toma tal cual.
+        entero = bool(cuerpo.strip()) and devuelto.lstrip().startswith(cuerpo.strip().splitlines()[0])
+        if encabezado and not entero:
+            nuevo = insertar_seccion(ej.enunciado_md, encabezado, devuelto)
+        else:
+            nuevo = reponer_marcas(prefijo, devuelto, sufijo)
         ej_mod.enunciado_md = nuevo
 
     elif aspecto == AspectoMejora.HINTS:
@@ -410,9 +406,12 @@ def mejorar_archivo_gift(
             system_prompt=SYSTEM_PROMPT_DOCENTE,
         )
 
-    contenido_nuevo = extraer_bloque_codigo(respuesta, "gift")
-    if contenido_nuevo == respuesta and respuesta.startswith("```"):
-        contenido_nuevo = extraer_bloque_codigo(respuesta)
+    preguntas, final = separar_gift(contenido_anterior)
+    contenido_nuevo = rearmar_gift(preguntas, final, respuesta)
+    if contenido_nuevo is None:  # el modelo devolvió el archivo entero (sin marcadores)
+        contenido_nuevo = extraer_bloque_codigo(respuesta, "gift")
+        if contenido_nuevo == respuesta and respuesta.startswith("```"):
+            contenido_nuevo = extraer_bloque_codigo(respuesta)
 
     cambio = contenido_anterior.strip() != contenido_nuevo.strip()
     diff = generar_diff_texto(contenido_anterior, contenido_nuevo, etiqueta=ruta_gift.name)

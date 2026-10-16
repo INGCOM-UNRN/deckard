@@ -57,7 +57,7 @@ def test_construir_prompt_con_ajuste_personalizado(ejercicio_muestra):
         aspecto=AspectoMejora.CLARITY,
         custom_prompt="Prohibir expresamente variables de una letra salvo indices canonicos.",
     )
-    assert "invertir-vector" in prompt
+    assert "invertir-vector" not in prompt  # el ID no lo usa ningún aspecto: no viaja
     assert "Invertir Vector en Memoria" in prompt
     assert "3. Aplicar" in prompt
     assert "CLARITY" in prompt
@@ -85,7 +85,7 @@ def test_construir_prompt_gift():
         aspecto=AspectoMejora.CLARITY,
         custom_prompt="Agregar feedback explicativo a cada opcion.",
     )
-    assert "BANCO DE PREGUNTAS GIFT" in prompt
+    assert "--- PREGUNTA 1 ---" in prompt
     assert "GIFT de Moodle" in prompt
     assert "Agregar feedback explicativo" in prompt
 
@@ -339,3 +339,119 @@ def test_doctor_incluye_el_proveedor_de_ia(sin_config_ia):
 
     nombres = {c["nombre"]: c for c in diagnosticar()}
     assert "opencode" in nombres["ia: proveedor"]["detalle"] and not nombres["ia: proveedor"]["requerido"]
+
+
+# ── Sólo lo que cada aspecto necesita (menos tokens) ──────────────────────────
+
+def _ejercicio_completo():
+    from deckard.core.models import FuncionSpec
+
+    return Ejercicio(
+        id="suma", titulo="Sumar", tema="arreglos", bloom=NivelBloom.APLICAR, minutos_estimados=15,
+        enunciado_md="Sumá los elementos.",
+        solucion_c='/* solución */\nint suma(const int *v, size_t n)\n{\n    // acumulador\n    int s = 0;   \n\n'
+                   '    for (size_t i = 0; i < n; i++) s += v[i];\n    puts("// no es comentario");\n    return s;\n}\n',
+        starter_code="int suma(const int *v, size_t n);",
+        pistas=["PISTA VIEJA"],
+        funciones=[FuncionSpec(nombre="suma", retorno="int", parametros="const int *v, size_t n")],
+    )
+
+
+@pytest.mark.parametrize("aspecto, esta, no_esta", [
+    (AspectoMejora.CLARITY, ["Sumá los elementos.", "Sumar"], ["int s = 0", "PISTA VIEJA", "Funciones C", "15 minutos"]),
+    (AspectoMejora.BLOOM, ["Sumá los elementos.", "3. Aplicar"], ["int s = 0", "PISTA VIEJA", "Título"]),
+    (AspectoMejora.HINTS, ["int s = 0;", "suma(const int *v"], ["PISTA VIEJA", "acumulador", "/* solución */"]),
+    (AspectoMejora.STARTER, ["CÓDIGO INICIAL ACTUAL", "suma(const int *v"], ["int s = 0", "PISTA VIEJA"]),
+    (AspectoMejora.TESTCASES, ["int s = 0;", "Tema: arreglos"], ["PISTA VIEJA"]),
+])
+def test_cada_aspecto_envia_solo_lo_que_usa(aspecto, esta, no_esta):
+    prompt = construir_prompt_ejercicio(_ejercicio_completo(), aspecto)
+    for texto in esta:
+        assert texto in prompt, texto
+    for texto in no_esta:
+        assert texto not in prompt, texto
+
+
+def test_compactar_c_saca_comentarios_y_blancos_pero_no_las_cadenas():
+    from deckard.core.contexto_ia import compactar_c
+
+    c = compactar_c(_ejercicio_completo().solucion_c)
+    assert "acumulador" not in c and "/* solución */" not in c and "\n\n" not in c
+    assert 'puts("// no es comentario");' in c and "int s = 0;\n" in c
+    assert compactar_c("int x;\n" * 2000, maximo=100).endswith("/* … recortado */")
+
+
+GIFT_CON_METADATOS = """$CATEGORY: $course$/P1
+
+// [tag:complejidad]
+::P1:: ¿Cuál es la complejidad? {=O(1) ~O(n)}
+
+// otra
+::P2:: ¿Y esta? {=O(n) ~O(1)}
+"""
+
+
+def test_gift_no_envia_comentarios_ni_categorias():
+    prompt = construir_prompt_gift(GIFT_CON_METADATOS, AspectoMejora.CLARITY)
+    assert "$CATEGORY" not in prompt and "[tag:complejidad]" not in prompt and "// otra" not in prompt
+    assert "--- PREGUNTA 2 ---\n::P2::" in prompt
+
+
+def test_gift_se_rearma_con_lo_devuelto_y_conserva_lo_demas(tmp_path):
+    archivo = tmp_path / "b.gift"
+    archivo.write_text(GIFT_CON_METADATOS, encoding="utf-8")
+    respuesta = "--- PREGUNTA 2 ---\n::P2:: ¿Cuál es la complejidad de recorrer el arreglo? {=O(n) ~O(1)}"
+    cambio, _, nuevo = mejorar_archivo_gift(archivo, AspectoMejora.CLARITY, mock_respuesta=respuesta)
+    assert cambio
+    assert nuevo.startswith("$CATEGORY: $course$/P1\n\n// [tag:complejidad]\n::P1:: ¿Cuál es la complejidad?")
+    assert "// otra\n::P2:: ¿Cuál es la complejidad de recorrer el arreglo?" in nuevo
+
+
+ENUNCIADO_MYST = """(ejercicio_5_12)=
+# Fibonacci
+
+Implementá `int fibonacci(int n);`.
+
+### Ejemplos
+
+viejo
+
+## Entrega
+
+Subí el archivo.
+
+---
+(ejercicio_5_13)=
+"""
+
+
+def test_las_marcas_myst_no_viajan_y_se_reponen():
+    from deckard.core.contexto_ia import separar_marcas
+
+    prefijo, cuerpo, sufijo = separar_marcas(ENUNCIADO_MYST)
+    assert prefijo == "(ejercicio_5_12)=" and sufijo.strip() == "---\n(ejercicio_5_13)="
+    ej = _ejercicio_completo().model_copy(update={"enunciado_md": ENUNCIADO_MYST})
+    prompt = construir_prompt_ejercicio(ej, AspectoMejora.CLARITY)
+    assert "(ejercicio_5_13)=" not in prompt and "(ejercicio_5_12)=" not in prompt
+    ej_mod, _, nuevo, _ = procesar_respuesta_ia(ej, AspectoMejora.CLARITY, "# Fibonacci\n\nImplementá la función.")
+    assert nuevo.startswith("(ejercicio_5_12)=\n# Fibonacci") and nuevo.endswith("---\n(ejercicio_5_13)=")
+
+
+def test_examples_devuelve_solo_su_seccion_y_reemplaza_la_existente():
+    ej = _ejercicio_completo().model_copy(update={"enunciado_md": ENUNCIADO_MYST})
+    _, _, nuevo, _ = procesar_respuesta_ia(ej, AspectoMejora.EXAMPLES, "### Ejemplos\n\n| n | fib |\n|--|--|\n| 5 | 5 |")
+    assert "viejo" not in nuevo and "| 5 | 5 |" in nuevo
+    assert nuevo.index("| 5 | 5 |") < nuevo.index("## Entrega")  # en su lugar, no al final
+    assert nuevo.endswith("---\n(ejercicio_5_13)=")
+
+
+def test_edge_cases_sin_seccion_previa_se_agrega_al_final_del_cuerpo():
+    ej = _ejercicio_completo()
+    _, _, nuevo, _ = procesar_respuesta_ia(ej, AspectoMejora.EDGE_CASES, "- `n == 0`: retorna 0.")
+    assert nuevo.startswith("Sumá los elementos.") and "### Casos Límite y Precondiciones\n\n- `n == 0`" in nuevo
+
+
+def test_si_el_modelo_devuelve_el_enunciado_entero_se_toma_tal_cual():
+    ej = _ejercicio_completo()
+    _, _, nuevo, _ = procesar_respuesta_ia(ej, AspectoMejora.EXAMPLES, "Sumá los elementos.\n\n### Ejemplos\n\nx")
+    assert nuevo == "Sumá los elementos.\n\n### Ejemplos\n\nx"
