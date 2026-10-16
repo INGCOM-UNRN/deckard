@@ -78,6 +78,17 @@ def diagnosticar() -> List[Dict[str, Any]]:
             "proposito": desc,
             "sugerencia": "" if info["disponible"] else fix,
         })
+    # Proveedor de IA de `deckard improve` (opcional): el mismo diagnóstico que el resto del ecosistema.
+    from dataclasses import asdict
+
+    from deckard.core.ia import configuracion
+    from yutani import ia
+
+    try:
+        chequeos += [asdict(c) for c in ia.diagnostico(configuracion())]
+    except ia.ErrorIA as exc:
+        chequeos.append({"nombre": "ia", "requerido": False, "ok": False, "detalle": str(exc),
+                         "proposito": "deckard improve", "sugerencia": f"Revisá {ia.ruta_configuracion()}"})
     return chequeos
 
 
@@ -115,7 +126,7 @@ def ejecutar_diagnostico_doctor(console: Optional[Console] = None) -> bool:
                 todo_ok = False
             else:
                 estado = "[yellow]! Opcional[/yellow]"
-            detalles = "[dim]No encontrado en $PATH[/dim]"
+            detalles = f"[dim]{chequeo['detalle'] or 'No encontrado en $PATH'}[/dim]"
             accion = f"{chequeo['proposito']} ↳ Instalar: {chequeo['sugerencia']}"
         tabla.add_row(chequeo["nombre"], estado, detalles, accion)
 

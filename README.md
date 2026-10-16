@@ -134,7 +134,7 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 * `deckard unpack <paquete.ripkg>`: Desempaqueta y restaura ejercicios desde paquetes `.ripkg`.
 * `deckard multiplex <spec>`: Generador de variantes combinatorias de TPs con asignación determinista por padrón/legajo.
 
-### 8. Curaduría y Mejora con OpenCode (`deckard improve` / `ai`)
+### 8. Curaduría y Mejora con IA (`deckard improve` / `ai`)
 * `deckard improve clarity <id|banco|gift>`: Claridad y desambiguación con verbos operativos de Bloom.
 * `deckard improve edge-cases <id|banco|gift>`: Especificación exhaustiva de casos borde, pre y postcondiciones.
 * `deckard improve examples <id|banco|gift>`: Enriquecimiento con ejemplos de I/O y trazas de ejecución.
@@ -143,8 +143,9 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 * `deckard improve testcases <id|banco|gift>`: Casos de prueba exhaustivos (borde, típicos, error).
 * `deckard improve starter <id|banco|gift>`: Código esqueleto inicial (`starter_code`) y cabeceras Doxygen.
 * `deckard improve all <id|banco|gift>`: Mejora holística e integral de la consigna en una única pasada.
-* `deckard improve models [provider]`: Interroga a OpenCode por los modelos disponibles (`--raw` para lista plana).
-  > Todos los subcomandos de mejora aceptan selección de modelo con `-m` / `--model` (ej: `-m "opencode-go/deepseek-v4-pro"`), `--prompt` (`-p`), `--prompt-file` (`-P`), `--apply` (`-a`), `--diff` y `--show-prompt`.
+* `deckard improve models [prefijo] [--proveedor P]`: Lista los modelos que ofrece el proveedor de IA (`--raw` para lista plana; el prefijo filtra, ej. `opencode-go`).
+  > Todos los subcomandos de mejora aceptan `--proveedor` (`google`, `local`, `opencode` o `claude`) y `-m` / `--model` (ej: `-m "opencode-go/deepseek-v4-pro"` o, con un servidor local, `--proveedor local -m qwen2.5-coder:7b`), `--prompt` (`-p`), `--prompt-file` (`-P`), `--apply` (`-a`), `--diff` y `--show-prompt`.
+  > El proveedor se configura igual que en el resto del ecosistema (yutani.ia): `--proveedor`, la variable `P1_IA_PROVEEDOR` o `~/.config/p1/ia.toml` (con `[herramientas.deckard]` para lo propio de deckard). Sin nada configurado se usa OpenCode, con `opencode-sandboxed` si está instalado. `deckard doctor` muestra qué proveedor quedó y si está disponible. Para Gemini o Claude hace falta el extra `ai` (`uv tool install "deckard[ecosistema,languagetool,ai] @ git+https://github.com/INGCOM-UNRN/deckard"`) y `GEMINI_API_KEY` o `ANTHROPIC_API_KEY`; con un servidor local u OpenCode, nada más.
 
 ---
 
@@ -214,7 +215,7 @@ valida mientras se escribe.
 | `deckard export` | Exportación multiformato (PDF, Markdown, HTML) y gestión de plantillas. |
 | `deckard guide` | Gestión, inspección y exportación de guías. |
 | `deckard spec` | Gestión, validación y composición de especificaciones de guías (GuiaSpec). |
-| `deckard improve` | Mejora y curaduría pedagógica de consignas y bancos de ejercicios con OpenCode. |
+| `deckard improve` | Mejora y curaduría pedagógica de consignas y bancos de ejercicios con IA (Gemini, servidor local, OpenCode o Claude). |
 | `deckard quality` | Calidad de consignas y bancos: terminología, tono, ambigüedad, ortografía, duplicados. |
 | `deckard exercise` | Crear y completar ejercicios: esqueletos, variantes, pruebas, rúbricas y diagramas. |
 

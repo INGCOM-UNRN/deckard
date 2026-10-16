@@ -15,10 +15,7 @@ from deckard.core.improve import (
     mejorar_ejercicio,
     mejorar_archivo_gift,
 )
-from deckard.core.opencode import (
-    buscar_ejecutable_opencode,
-    extraer_bloque_codigo,
-)
+from deckard.core.ia import extraer_bloque_codigo
 
 runner = CliRunner()
 
@@ -233,7 +230,7 @@ def test_cli_improve_mock_execution(monkeypatch, ejercicio_muestra):
 Implementá la función solicitada de manera segura.
 ```"""
 
-    monkeypatch.setattr("deckard.core.improve.ejecutar_opencode", mock_ejecutar)
+    monkeypatch.setattr("deckard.core.improve.consultar_ia", mock_ejecutar)
 
     # Invocar CLI con --apply
     res = runner.invoke(app, [
@@ -259,14 +256,14 @@ def test_cli_alias_ai_y_opencode(ejercicio_muestra):
 
 
 def test_cli_improve_models(monkeypatch):
-    def mock_listar(provider=None, timeout=15):
+    def mock_listar(proveedor=None, filtro=None):
         return [
             "opencode-go/qwen3.8-max",
             "opencode-go/deepseek-v4-pro",
             "opencode-go/kimi-k3",
         ]
 
-    monkeypatch.setattr("deckard.core.opencode.listar_modelos_opencode", mock_listar)
+    monkeypatch.setattr("deckard.core.ia.listar_modelos", mock_listar)
 
     res = runner.invoke(app, ["improve", "models"])
     assert res.exit_code == 0
@@ -284,13 +281,13 @@ def test_cli_improve_custom_model_flag(monkeypatch, ejercicio_muestra):
     dir_ej, _ = ejercicio_muestra
     capturado = {}
 
-    def mock_ejecutar(prompt, modelo="opencode-go/qwen3.8-max", **kwargs):
+    def mock_ejecutar(prompt, modelo=None, **kwargs):
         capturado["modelo"] = modelo
         return """```markdown
 # Enunciado con Modelo Custom
 ```"""
 
-    monkeypatch.setattr("deckard.core.improve.ejecutar_opencode", mock_ejecutar)
+    monkeypatch.setattr("deckard.core.improve.consultar_ia", mock_ejecutar)
 
     res = runner.invoke(app, [
         "improve", "clarity", str(dir_ej),
@@ -300,3 +297,45 @@ def test_cli_improve_custom_model_flag(monkeypatch, ejercicio_muestra):
     assert res.exit_code == 0
     assert capturado.get("modelo") == "opencode-go/deepseek-v4-pro"
 
+
+
+@pytest.fixture
+def sin_config_ia(monkeypatch, tmp_path):
+    for var in ("P1_IA_PROVEEDOR", "P1_IA_MODELO", "P1_IA_URL"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("P1_IA_CONFIG", str(tmp_path / "ia.toml"))
+
+
+def test_cli_improve_proveedor_y_modelo_llegan_a_yutani(monkeypatch, ejercicio_muestra, sin_config_ia):
+    """--proveedor elige el proveedor de yutani.ia (N-ECO-26); sin nada, deckard sigue con OpenCode."""
+    import types
+
+    from yutani import ia
+
+    pedidos = []
+
+    def cliente(config, directorio=None):
+        pedidos.append((config, directorio))
+        return types.SimpleNamespace(generar=lambda prompt, sistema=None: "```markdown\n# Nuevo enunciado\n```")
+
+    monkeypatch.setattr(ia, "cliente", cliente)
+    dir_ej, _ = ejercicio_muestra
+    res = runner.invoke(app, ["improve", "clarity", str(dir_ej), "--proveedor", "ollama", "-m", "qwen2.5-coder:7b"])
+    assert res.exit_code == 0, res.stdout
+    config, directorio = pedidos[-1]
+    assert (config.proveedor, config.modelo, directorio) == ("local", "qwen2.5-coder:7b", dir_ej)
+    runner.invoke(app, ["improve", "clarity", str(dir_ej)])
+    assert (pedidos[-1][0].proveedor, pedidos[-1][0].modelo) == ("opencode", "opencode-go/qwen3.8-max")
+
+
+def test_cli_improve_proveedor_desconocido(ejercicio_muestra, sin_config_ia):
+    dir_ej, _ = ejercicio_muestra
+    res = runner.invoke(app, ["improve", "clarity", str(dir_ej), "--proveedor", "watson"])
+    assert res.exit_code == 1 and "desconocido" in res.stdout
+
+
+def test_doctor_incluye_el_proveedor_de_ia(sin_config_ia):
+    from deckard.core.doctor import diagnosticar
+
+    nombres = {c["nombre"]: c for c in diagnosticar()}
+    assert "opencode" in nombres["ia: proveedor"]["detalle"] and not nombres["ia: proveedor"]["requerido"]

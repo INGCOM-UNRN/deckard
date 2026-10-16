@@ -1,4 +1,4 @@
-"""Sub-app `improve`: mejora y curaduría pedagógica de consignas con OpenCode."""
+"""Sub-app `improve`: mejora y curaduría pedagógica de consignas con un modelo de lenguaje (yutani.ia)."""
 
 from __future__ import annotations
 
@@ -29,8 +29,19 @@ from deckard.cli._shared import (
 )
 
 # ---------------------------------------------------------------------------
-# Mejora de Consignas y Bancos con OpenCode (improve / ai)
+# Mejora de Consignas y Bancos con un modelo de lenguaje (improve / ai)
 # ---------------------------------------------------------------------------
+
+def _quien(proveedor: Optional[str], model: Optional[str]) -> str:
+    """«opencode (opencode-go/qwen3.8-max)»: el proveedor y el modelo que van a responder."""
+    from deckard.core.ia import configuracion
+
+    try:
+        c = configuracion(proveedor, model)
+    except Exception:  # noqa: BLE001 - el error de configuración se informa al consultar
+        return proveedor or "IA"
+    return f"{c.proveedor} ({c.modelo or 'el primero del servidor'})"
+
 
 def _ejecutar_mejora_cli(
     aspecto,
@@ -38,7 +49,8 @@ def _ejecutar_mejora_cli(
     banco: Path = Path("."),
     prompt: Optional[str] = None,
     prompt_file: Optional[Path] = None,
-    model: str = "opencode-go/qwen3.8-max",
+    model: Optional[str] = None,
+    proveedor: Optional[str] = None,
     apply: bool = False,
     diff: bool = True,
     show_prompt: bool = False,
@@ -70,7 +82,7 @@ def _ejecutar_mejora_cli(
             console.print(Panel(p_txt, title=f"Prompt generado para {path_gift.name} [{aspecto.value}]", border_style="cyan"))
             return
 
-        with console.status(f"[cyan]Curando banco GIFT '{path_gift.name}' con OpenCode ({model})...[/cyan]"):
+        with console.status(f"[cyan]Curando banco GIFT '{path_gift.name}' con {_quien(proveedor, model)}...[/cyan]"):
             try:
                 cambio, diff_txt, nuevo_contenido = mejorar_archivo_gift(
                     ruta_gift=path_gift,
@@ -78,11 +90,12 @@ def _ejecutar_mejora_cli(
                     custom_prompt=prompt,
                     prompt_file=prompt_file,
                     modelo=model,
+                    proveedor=proveedor,
                     usar_sandbox=sandbox,
                     aplicar=apply,
                 )
             except Exception as e:
-                console.print(f"[bold red]Error al invocar OpenCode:[/bold red] {e}")
+                console.print(f"[bold red]Error al consultar el modelo:[/bold red] {e}")
                 raise typer.Exit(code=1) from e
 
         if diff and diff_txt:
@@ -120,7 +133,7 @@ def _ejecutar_mejora_cli(
             console.print(Panel(p_txt, title=f"Prompt generado para '{ej.id}' [{aspecto.value}]", border_style="cyan"))
             return
 
-        with console.status(f"[cyan]Mejorando aspecto '{aspecto.value}' en '{ej.id}' con OpenCode ({model})...[/cyan]"):
+        with console.status(f"[cyan]Mejorando aspecto '{aspecto.value}' en '{ej.id}' con {_quien(proveedor, model)}...[/cyan]"):
             try:
                 res = mejorar_ejercicio(
                     dir_ejercicio=dir_candidato,
@@ -128,11 +141,12 @@ def _ejecutar_mejora_cli(
                     custom_prompt=prompt,
                     prompt_file=prompt_file,
                     modelo=model,
+                    proveedor=proveedor,
                     usar_sandbox=sandbox,
                     aplicar=apply,
                 )
             except Exception as e:
-                console.print(f"[bold red]Error al ejecutar OpenCode:[/bold red] {e}")
+                console.print(f"[bold red]Error al consultar el modelo:[/bold red] {e}")
                 raise typer.Exit(code=1) from e
 
         if diff and res.diff:
@@ -172,9 +186,9 @@ def _ejecutar_mejora_cli(
         console.print(Panel(p_txt, title=f"Prompt de muestra para primer ejercicio '{primer_ej.id}' [{aspecto.value}]", border_style="cyan"))
         return
 
-    console.print(f"[bold cyan]Iniciando mejora de aspecto '{aspecto.value}' sobre {len(ejercicios_encontrados)} ejercicios con {model}...[/bold cyan]")
+    console.print(f"[bold cyan]Iniciando mejora de aspecto '{aspecto.value}' sobre {len(ejercicios_encontrados)} ejercicios con {_quien(proveedor, model)}...[/bold cyan]")
 
-    tabla = Table(title=f"Resultados de Mejora con OpenCode ({aspecto.value})")
+    tabla = Table(title=f"Resultados de Mejora con IA ({aspecto.value})")
     tabla.add_column("Ejercicio ID", style="bold")
     tabla.add_column("Tema", style="cyan")
     tabla.add_column("Bloom", justify="center")
@@ -200,6 +214,7 @@ def _ejecutar_mejora_cli(
                     custom_prompt=prompt,
                     prompt_file=prompt_file,
                     modelo=model,
+                    proveedor=proveedor,
                     usar_sandbox=sandbox,
                     aplicar=apply,
                 )
@@ -229,10 +244,14 @@ def improve_clarity(
     banco: Path = typer.Option(Path("."), "--banco", "-b", help="Directorio raíz del banco de ejercicios."),
     prompt: Optional[str] = typer.Option(None, "--prompt", "-p", help="Instrucciones adicionales para ajustar el prompt."),
     prompt_file: Optional[Path] = typer.Option(None, "--prompt-file", "-P", help="Archivo con directivas personalizadas."),
-    model: str = typer.Option("opencode-go/qwen3.8-max", "--model", "-m", help="Modelo de OpenCode a utilizar."),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Modelo (por defecto, el configurado para el proveedor; con opencode, opencode-go/qwen3.8-max)."),
+    proveedor: Optional[str] = typer.Option(
+        None, "--proveedor", "--provider",
+        help="Proveedor de IA: google, local, opencode o claude (por defecto: P1_IA_PROVEEDOR, ~/.config/p1/ia.toml u opencode)."),
     apply: bool = typer.Option(False, "--apply", "-a", help="Aplica y guarda los cambios en los archivos."),
     diff: bool = typer.Option(True, "--diff/--no-diff", "-d", help="Muestra diff unificado de los cambios."),
-    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin invocar a OpenCode."),
+    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin consultar al modelo."),
     sandbox: bool = typer.Option(True, "--sandbox/--no-sandbox", help="Usa ejecución aislada bwrap si está disponible."),
     all_exercises: bool = typer.Option(False, "--all", help="Procesar todos los ejercicios del banco."),
     patron: Optional[str] = typer.Option(None, "--patron", help="Filtro comodín para IDs de ejercicios."),
@@ -246,7 +265,7 @@ def improve_clarity(
     _ejecutar_mejora_cli(
         aspecto=AspectoMejora.CLARITY,
         target=target, banco=banco, prompt=prompt, prompt_file=prompt_file,
-        model=model, apply=apply, diff=diff, show_prompt=show_prompt,
+        model=model, proveedor=proveedor, apply=apply, diff=diff, show_prompt=show_prompt,
         sandbox=sandbox, all_exercises=all_exercises, patron=patron,
         tema=tema, bloom=bloom, tag=tag, output=output,
     )
@@ -258,10 +277,14 @@ def improve_edge_cases(
     banco: Path = typer.Option(Path("."), "--banco", "-b", help="Directorio raíz del banco de ejercicios."),
     prompt: Optional[str] = typer.Option(None, "--prompt", "-p", help="Instrucciones adicionales para ajustar el prompt."),
     prompt_file: Optional[Path] = typer.Option(None, "--prompt-file", "-P", help="Archivo con directivas personalizadas."),
-    model: str = typer.Option("opencode-go/qwen3.8-max", "--model", "-m", help="Modelo de OpenCode a utilizar."),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Modelo (por defecto, el configurado para el proveedor; con opencode, opencode-go/qwen3.8-max)."),
+    proveedor: Optional[str] = typer.Option(
+        None, "--proveedor", "--provider",
+        help="Proveedor de IA: google, local, opencode o claude (por defecto: P1_IA_PROVEEDOR, ~/.config/p1/ia.toml u opencode)."),
     apply: bool = typer.Option(False, "--apply", "-a", help="Aplica y guarda los cambios en los archivos."),
     diff: bool = typer.Option(True, "--diff/--no-diff", "-d", help="Muestra diff unificado de los cambios."),
-    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin invocar a OpenCode."),
+    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin consultar al modelo."),
     sandbox: bool = typer.Option(True, "--sandbox/--no-sandbox", help="Usa ejecución aislada bwrap si está disponible."),
     all_exercises: bool = typer.Option(False, "--all", help="Procesar todos los ejercicios del banco."),
     patron: Optional[str] = typer.Option(None, "--patron", help="Filtro comodín para IDs de ejercicios."),
@@ -275,7 +298,7 @@ def improve_edge_cases(
     _ejecutar_mejora_cli(
         aspecto=AspectoMejora.EDGE_CASES,
         target=target, banco=banco, prompt=prompt, prompt_file=prompt_file,
-        model=model, apply=apply, diff=diff, show_prompt=show_prompt,
+        model=model, proveedor=proveedor, apply=apply, diff=diff, show_prompt=show_prompt,
         sandbox=sandbox, all_exercises=all_exercises, patron=patron,
         tema=tema, bloom=bloom, tag=tag, output=output,
     )
@@ -287,10 +310,14 @@ def improve_examples(
     banco: Path = typer.Option(Path("."), "--banco", "-b", help="Directorio raíz del banco de ejercicios."),
     prompt: Optional[str] = typer.Option(None, "--prompt", "-p", help="Instrucciones adicionales para ajustar el prompt."),
     prompt_file: Optional[Path] = typer.Option(None, "--prompt-file", "-P", help="Archivo con directivas personalizadas."),
-    model: str = typer.Option("opencode-go/qwen3.8-max", "--model", "-m", help="Modelo de OpenCode a utilizar."),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Modelo (por defecto, el configurado para el proveedor; con opencode, opencode-go/qwen3.8-max)."),
+    proveedor: Optional[str] = typer.Option(
+        None, "--proveedor", "--provider",
+        help="Proveedor de IA: google, local, opencode o claude (por defecto: P1_IA_PROVEEDOR, ~/.config/p1/ia.toml u opencode)."),
     apply: bool = typer.Option(False, "--apply", "-a", help="Aplica y guarda los cambios en los archivos."),
     diff: bool = typer.Option(True, "--diff/--no-diff", "-d", help="Muestra diff unificado de los cambios."),
-    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin invocar a OpenCode."),
+    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin consultar al modelo."),
     sandbox: bool = typer.Option(True, "--sandbox/--no-sandbox", help="Usa ejecución aislada bwrap si está disponible."),
     all_exercises: bool = typer.Option(False, "--all", help="Procesar todos los ejercicios del banco."),
     patron: Optional[str] = typer.Option(None, "--patron", help="Filtro comodín para IDs de ejercicios."),
@@ -304,7 +331,7 @@ def improve_examples(
     _ejecutar_mejora_cli(
         aspecto=AspectoMejora.EXAMPLES,
         target=target, banco=banco, prompt=prompt, prompt_file=prompt_file,
-        model=model, apply=apply, diff=diff, show_prompt=show_prompt,
+        model=model, proveedor=proveedor, apply=apply, diff=diff, show_prompt=show_prompt,
         sandbox=sandbox, all_exercises=all_exercises, patron=patron,
         tema=tema, bloom=bloom, tag=tag, output=output,
     )
@@ -316,10 +343,14 @@ def improve_hints(
     banco: Path = typer.Option(Path("."), "--banco", "-b", help="Directorio raíz del banco de ejercicios."),
     prompt: Optional[str] = typer.Option(None, "--prompt", "-p", help="Instrucciones adicionales para ajustar el prompt."),
     prompt_file: Optional[Path] = typer.Option(None, "--prompt-file", "-P", help="Archivo con directivas personalizadas."),
-    model: str = typer.Option("opencode-go/qwen3.8-max", "--model", "-m", help="Modelo de OpenCode a utilizar."),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Modelo (por defecto, el configurado para el proveedor; con opencode, opencode-go/qwen3.8-max)."),
+    proveedor: Optional[str] = typer.Option(
+        None, "--proveedor", "--provider",
+        help="Proveedor de IA: google, local, opencode o claude (por defecto: P1_IA_PROVEEDOR, ~/.config/p1/ia.toml u opencode)."),
     apply: bool = typer.Option(False, "--apply", "-a", help="Aplica y guarda los cambios en los archivos."),
     diff: bool = typer.Option(True, "--diff/--no-diff", "-d", help="Muestra diff unificado de los cambios."),
-    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin invocar a OpenCode."),
+    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin consultar al modelo."),
     sandbox: bool = typer.Option(True, "--sandbox/--no-sandbox", help="Usa ejecución aislada bwrap si está disponible."),
     all_exercises: bool = typer.Option(False, "--all", help="Procesar todos los ejercicios del banco."),
     patron: Optional[str] = typer.Option(None, "--patron", help="Filtro comodín para IDs de ejercicios."),
@@ -333,7 +364,7 @@ def improve_hints(
     _ejecutar_mejora_cli(
         aspecto=AspectoMejora.HINTS,
         target=target, banco=banco, prompt=prompt, prompt_file=prompt_file,
-        model=model, apply=apply, diff=diff, show_prompt=show_prompt,
+        model=model, proveedor=proveedor, apply=apply, diff=diff, show_prompt=show_prompt,
         sandbox=sandbox, all_exercises=all_exercises, patron=patron,
         tema=tema, bloom=bloom, tag=tag, output=output,
     )
@@ -345,10 +376,14 @@ def improve_bloom(
     banco: Path = typer.Option(Path("."), "--banco", "-b", help="Directorio raíz del banco de ejercicios."),
     prompt: Optional[str] = typer.Option(None, "--prompt", "-p", help="Instrucciones adicionales para ajustar el prompt."),
     prompt_file: Optional[Path] = typer.Option(None, "--prompt-file", "-P", help="Archivo con directivas personalizadas."),
-    model: str = typer.Option("opencode-go/qwen3.8-max", "--model", "-m", help="Modelo de OpenCode a utilizar."),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Modelo (por defecto, el configurado para el proveedor; con opencode, opencode-go/qwen3.8-max)."),
+    proveedor: Optional[str] = typer.Option(
+        None, "--proveedor", "--provider",
+        help="Proveedor de IA: google, local, opencode o claude (por defecto: P1_IA_PROVEEDOR, ~/.config/p1/ia.toml u opencode)."),
     apply: bool = typer.Option(False, "--apply", "-a", help="Aplica y guarda los cambios en los archivos."),
     diff: bool = typer.Option(True, "--diff/--no-diff", "-d", help="Muestra diff unificado de los cambios."),
-    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin invocar a OpenCode."),
+    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin consultar al modelo."),
     sandbox: bool = typer.Option(True, "--sandbox/--no-sandbox", help="Usa ejecución aislada bwrap si está disponible."),
     all_exercises: bool = typer.Option(False, "--all", help="Procesar todos los ejercicios del banco."),
     patron: Optional[str] = typer.Option(None, "--patron", help="Filtro comodín para IDs de ejercicios."),
@@ -362,7 +397,7 @@ def improve_bloom(
     _ejecutar_mejora_cli(
         aspecto=AspectoMejora.BLOOM,
         target=target, banco=banco, prompt=prompt, prompt_file=prompt_file,
-        model=model, apply=apply, diff=diff, show_prompt=show_prompt,
+        model=model, proveedor=proveedor, apply=apply, diff=diff, show_prompt=show_prompt,
         sandbox=sandbox, all_exercises=all_exercises, patron=patron,
         tema=tema, bloom=bloom, tag=tag, output=output,
     )
@@ -374,10 +409,14 @@ def improve_testcases(
     banco: Path = typer.Option(Path("."), "--banco", "-b", help="Directorio raíz del banco de ejercicios."),
     prompt: Optional[str] = typer.Option(None, "--prompt", "-p", help="Instrucciones adicionales para ajustar el prompt."),
     prompt_file: Optional[Path] = typer.Option(None, "--prompt-file", "-P", help="Archivo con directivas personalizadas."),
-    model: str = typer.Option("opencode-go/qwen3.8-max", "--model", "-m", help="Modelo de OpenCode a utilizar."),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Modelo (por defecto, el configurado para el proveedor; con opencode, opencode-go/qwen3.8-max)."),
+    proveedor: Optional[str] = typer.Option(
+        None, "--proveedor", "--provider",
+        help="Proveedor de IA: google, local, opencode o claude (por defecto: P1_IA_PROVEEDOR, ~/.config/p1/ia.toml u opencode)."),
     apply: bool = typer.Option(False, "--apply", "-a", help="Aplica y guarda los cambios en los archivos."),
     diff: bool = typer.Option(True, "--diff/--no-diff", "-d", help="Muestra diff unificado de los cambios."),
-    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin invocar a OpenCode."),
+    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin consultar al modelo."),
     sandbox: bool = typer.Option(True, "--sandbox/--no-sandbox", help="Usa ejecución aislada bwrap si está disponible."),
     all_exercises: bool = typer.Option(False, "--all", help="Procesar todos los ejercicios del banco."),
     patron: Optional[str] = typer.Option(None, "--patron", help="Filtro comodín para IDs de ejercicios."),
@@ -391,7 +430,7 @@ def improve_testcases(
     _ejecutar_mejora_cli(
         aspecto=AspectoMejora.TESTCASES,
         target=target, banco=banco, prompt=prompt, prompt_file=prompt_file,
-        model=model, apply=apply, diff=diff, show_prompt=show_prompt,
+        model=model, proveedor=proveedor, apply=apply, diff=diff, show_prompt=show_prompt,
         sandbox=sandbox, all_exercises=all_exercises, patron=patron,
         tema=tema, bloom=bloom, tag=tag, output=output,
     )
@@ -403,10 +442,14 @@ def improve_starter(
     banco: Path = typer.Option(Path("."), "--banco", "-b", help="Directorio raíz del banco de ejercicios."),
     prompt: Optional[str] = typer.Option(None, "--prompt", "-p", help="Instrucciones adicionales para ajustar el prompt."),
     prompt_file: Optional[Path] = typer.Option(None, "--prompt-file", "-P", help="Archivo con directivas personalizadas."),
-    model: str = typer.Option("opencode-go/qwen3.8-max", "--model", "-m", help="Modelo de OpenCode a utilizar."),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Modelo (por defecto, el configurado para el proveedor; con opencode, opencode-go/qwen3.8-max)."),
+    proveedor: Optional[str] = typer.Option(
+        None, "--proveedor", "--provider",
+        help="Proveedor de IA: google, local, opencode o claude (por defecto: P1_IA_PROVEEDOR, ~/.config/p1/ia.toml u opencode)."),
     apply: bool = typer.Option(False, "--apply", "-a", help="Aplica y guarda los cambios en los archivos."),
     diff: bool = typer.Option(True, "--diff/--no-diff", "-d", help="Muestra diff unificado de los cambios."),
-    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin invocar a OpenCode."),
+    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin consultar al modelo."),
     sandbox: bool = typer.Option(True, "--sandbox/--no-sandbox", help="Usa ejecución aislada bwrap si está disponible."),
     all_exercises: bool = typer.Option(False, "--all", help="Procesar todos los ejercicios del banco."),
     patron: Optional[str] = typer.Option(None, "--patron", help="Filtro comodín para IDs de ejercicios."),
@@ -420,7 +463,7 @@ def improve_starter(
     _ejecutar_mejora_cli(
         aspecto=AspectoMejora.STARTER,
         target=target, banco=banco, prompt=prompt, prompt_file=prompt_file,
-        model=model, apply=apply, diff=diff, show_prompt=show_prompt,
+        model=model, proveedor=proveedor, apply=apply, diff=diff, show_prompt=show_prompt,
         sandbox=sandbox, all_exercises=all_exercises, patron=patron,
         tema=tema, bloom=bloom, tag=tag, output=output,
     )
@@ -433,10 +476,14 @@ def improve_all(
     banco: Path = typer.Option(Path("."), "--banco", "-b", help="Directorio raíz del banco de ejercicios."),
     prompt: Optional[str] = typer.Option(None, "--prompt", "-p", help="Instrucciones adicionales para ajustar el prompt."),
     prompt_file: Optional[Path] = typer.Option(None, "--prompt-file", "-P", help="Archivo con directivas personalizadas."),
-    model: str = typer.Option("opencode-go/qwen3.8-max", "--model", "-m", help="Modelo de OpenCode a utilizar."),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Modelo (por defecto, el configurado para el proveedor; con opencode, opencode-go/qwen3.8-max)."),
+    proveedor: Optional[str] = typer.Option(
+        None, "--proveedor", "--provider",
+        help="Proveedor de IA: google, local, opencode o claude (por defecto: P1_IA_PROVEEDOR, ~/.config/p1/ia.toml u opencode)."),
     apply: bool = typer.Option(False, "--apply", "-a", help="Aplica y guarda los cambios en los archivos."),
     diff: bool = typer.Option(True, "--diff/--no-diff", "-d", help="Muestra diff unificado de los cambios."),
-    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin invocar a OpenCode."),
+    show_prompt: bool = typer.Option(False, "--show-prompt", help="Imprime el prompt generado sin consultar al modelo."),
     sandbox: bool = typer.Option(True, "--sandbox/--no-sandbox", help="Usa ejecución aislada bwrap si está disponible."),
     all_exercises: bool = typer.Option(False, "--all", help="Procesar todos los ejercicios del banco."),
     patron: Optional[str] = typer.Option(None, "--patron", help="Filtro comodín para IDs de ejercicios."),
@@ -450,7 +497,7 @@ def improve_all(
     _ejecutar_mejora_cli(
         aspecto=AspectoMejora.ALL,
         target=target, banco=banco, prompt=prompt, prompt_file=prompt_file,
-        model=model, apply=apply, diff=diff, show_prompt=show_prompt,
+        model=model, proveedor=proveedor, apply=apply, diff=diff, show_prompt=show_prompt,
         sandbox=sandbox, all_exercises=all_exercises, patron=patron,
         tema=tema, bloom=bloom, tag=tag, output=output,
     )
@@ -458,20 +505,24 @@ def improve_all(
 
 @improve_app.command("models")
 def improve_models(
-    provider: Optional[str] = typer.Argument(None, help="Proveedor opcional para filtrar modelos (ej: opencode-go)."),
+    provider: Optional[str] = typer.Argument(None, help="Prefijo opcional para filtrar modelos (ej: opencode-go)."),
+    proveedor: Optional[str] = typer.Option(
+        None, "--proveedor",
+        help="Proveedor de IA a consultar: google, local, opencode o claude (por defecto, el configurado u opencode)."),
     raw: bool = typer.Option(False, "--raw", "-r", help="Imprimir únicamente la lista plana de identificadores de modelos."),
 ) -> None:
-    """Interroga a OpenCode por los modelos de lenguaje disponibles para curaduría."""
-    from deckard.core.opencode import DEFAULT_MODEL, listar_modelos_opencode
+    """Lista los modelos de lenguaje que ofrece el proveedor de IA configurado."""
+    from deckard.core.ia import configuracion, listar_modelos
 
     try:
-        modelos = listar_modelos_opencode(provider=provider)
+        config = configuracion(proveedor)
+        modelos = listar_modelos(proveedor=proveedor, filtro=provider)
     except Exception as e:
-        console.print(f"[bold red]Error al interrogar modelos de OpenCode:[/bold red] {e}")
+        console.print(f"[bold red]Error al consultar los modelos de {proveedor or 'IA'}:[/bold red] {e}")
         raise typer.Exit(code=1) from e
 
     if not modelos:
-        console.print("[yellow]No se obtuvieron modelos desde OpenCode.[/yellow]")
+        console.print(f"[yellow]{config.proveedor} no ofreció modelos.[/yellow]")
         return
 
     if raw:
@@ -479,18 +530,18 @@ def improve_models(
             print(m)
         return
 
-    tabla = Table(title="🤖 Modelos Disponibles en OpenCode", border_style="cyan")
+    tabla = Table(title=f"🤖 Modelos disponibles en {config.proveedor}", border_style="cyan")
     tabla.add_column("Identificador de Modelo", style="bold white")
     tabla.add_column("Proveedor", style="cyan")
     tabla.add_column("Por Defecto", justify="center")
 
     for m in modelos:
         prov = m.split("/")[0] if "/" in m else "local"
-        es_default = "[bold green]★ Sí[/bold green]" if m == DEFAULT_MODEL else "[dim]No[/dim]"
+        es_default = "[bold green]★ Sí[/bold green]" if m == config.modelo else "[dim]No[/dim]"
         tabla.add_row(m, prov, es_default)
 
     console.print(tabla)
-    console.print(f"\n[dim]Total: {len(modelos)} modelos disponibles. Modelo predeterminado: [bold cyan]{DEFAULT_MODEL}[/bold cyan][/dim]")
+    console.print(f"\n[dim]Total: {len(modelos)} modelos disponibles. Modelo predeterminado ({config.proveedor}): [bold cyan]{config.modelo or 'el primero del servidor'}[/bold cyan][/dim]")
     console.print("[dim]Uso: deckard improve <comando> [target] -m <modelo>[/dim]")
 
 

@@ -136,7 +136,7 @@ app.add_typer(spec_app, name="spec")
 
 improve_app = typer.Typer(
     name="improve",
-    help="Mejora y curaduría pedagógica de consignas y bancos de ejercicios con OpenCode.",
+    help="Mejora y curaduría pedagógica de consignas y bancos de ejercicios con IA (Gemini, servidor local, OpenCode o Claude).",
     no_args_is_help=True,
 )
 app.add_typer(improve_app, name="improve")

@@ -1,4 +1,4 @@
-"""Módulo de curaduría y mejora pedagógica de consignas y bancos con OpenCode."""
+"""Curaduría y mejora pedagógica de consignas y bancos con un modelo de lenguaje (yutani.ia)."""
 
 from __future__ import annotations
 
@@ -13,11 +13,7 @@ import yaml
 
 from deckard.core.bank import ARCHIVO_EJERCICIO, cargar_ejercicio, guardar_ejercicio
 from deckard.core.models import Ejercicio, NivelBloom
-from deckard.core.opencode import (
-    DEFAULT_MODEL,
-    ejecutar_opencode,
-    extraer_bloque_codigo,
-)
+from deckard.core.ia import consultar_ia, extraer_bloque_codigo
 
 
 class AspectoMejora(str, Enum):
@@ -150,7 +146,7 @@ def construir_prompt_ejercicio(
     custom_prompt: Optional[str] = None,
     prompt_file: Optional[Path] = None,
 ) -> str:
-    """Construye el prompt completo para invocar a OpenCode sobre un ejercicio."""
+    """Construye el prompt completo para el modelo sobre un ejercicio."""
     instruccion_aspecto = _obtener_instruccion_aspecto(aspecto, ejercicio)
 
     partes = [
@@ -253,7 +249,7 @@ def procesar_respuesta_ia(
     aspecto: AspectoMejora,
     respuesta_ia: str,
 ) -> Tuple[Ejercicio, str, str, Optional[List[str]]]:
-    """Interpreta la respuesta de OpenCode y actualiza el modelo en memoria."""
+    """Interpreta la respuesta del modelo y actualiza el modelo en memoria."""
     ej_mod = ej.model_copy(deep=True)
     anterior = ""
     nuevo = ""
@@ -327,13 +323,14 @@ def mejorar_ejercicio(
     aspecto: AspectoMejora,
     custom_prompt: Optional[str] = None,
     prompt_file: Optional[Path] = None,
-    modelo: str = DEFAULT_MODEL,
+    modelo: Optional[str] = None,
+    proveedor: Optional[str] = None,
     usar_sandbox: bool = True,
     aplicar: bool = False,
     timeout: int = 180,
     mock_respuesta: Optional[str] = None,
 ) -> ResultadoMejora:
-    """Ejecuta el flujo de mejora con OpenCode sobre un ejercicio específico."""
+    """Ejecuta el flujo de mejora con el modelo configurado sobre un ejercicio específico."""
     ej = cargar_ejercicio(dir_ejercicio)
     prompt = construir_prompt_ejercicio(
         ejercicio=ej,
@@ -345,8 +342,9 @@ def mejorar_ejercicio(
     if mock_respuesta is not None:
         respuesta = mock_respuesta
     else:
-        respuesta = ejecutar_opencode(
-            prompt=prompt,
+        respuesta = consultar_ia(
+            prompt,
+            proveedor=proveedor,
             modelo=modelo,
             dir_trabajo=dir_ejercicio,
             timeout=timeout,
@@ -383,7 +381,8 @@ def mejorar_archivo_gift(
     aspecto: AspectoMejora,
     custom_prompt: Optional[str] = None,
     prompt_file: Optional[Path] = None,
-    modelo: str = DEFAULT_MODEL,
+    modelo: Optional[str] = None,
+    proveedor: Optional[str] = None,
     usar_sandbox: bool = True,
     aplicar: bool = False,
     timeout: int = 180,
@@ -401,8 +400,9 @@ def mejorar_archivo_gift(
     if mock_respuesta is not None:
         respuesta = mock_respuesta
     else:
-        respuesta = ejecutar_opencode(
-            prompt=prompt,
+        respuesta = consultar_ia(
+            prompt,
+            proveedor=proveedor,
             modelo=modelo,
             dir_trabajo=ruta_gift.parent,
             timeout=timeout,
