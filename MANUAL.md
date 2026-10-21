@@ -243,6 +243,38 @@ deckard verify --all --log-fallos dist/fallos_verificacion.md
 ```
 > **Auto-desverificación:** Si un ejercicio falla la verificación o presenta errores de compilación, Deckard actualiza automáticamente su `ejercicio.yaml` a `verificado: false`.
 
+#### Coherencia de la rúbrica (`deckard verify --rubric`)
+Revisa la `rubrica:` de cada ejercicio sin compilar nada: los pesos tienen que ser números no
+negativos que sumen 100 % y cada criterio `test:<nombre>` tiene que nombrar una prueba de
+`tests_funciones` o `tests_ocultos`. Sale con 2 si alguna rúbrica no cumple; los criterios que no se
+califican automáticamente (por ejemplo `defensa_oral`) sólo dan un aviso.
+
+```bash
+deckard verify --rubric --all
+deckard verify --rubric potencia --json
+```
+
+#### Calificación con la rúbrica (`deckard exercise rubric --eval-results`)
+Aplica la rúbrica a lo que evaluó `dredd eval` (la última revisión de cada estudiante: el
+`resultado` de `rNi/auditoria.json` y `rNi/hallazgos.json`) y calcula la nota 0–10:
+
+| Criterio | Logro (0 a 1) |
+| :--- | :--- |
+| `tests_unitarios` | Pruebas aprobadas / total. |
+| `test:<nombre>` | 1 si esa prueba pasó. |
+| `estilo_gaff`, `sanitizers_memoria`, `antipatrones_spunkmeyer`, `modularidad_y_diseño`, o una categoría de yutani (`memoria`, `punteros`…) | 1 menos 0,25 por error, 0,10 por advertencia y 0,05 por estilo; cada hallazgo cuenta para un solo criterio. `sanitizers_memoria` descuenta además 0,25 por prueba con fuga. |
+
+Si la entrega no compila, todos los criterios valen 0. Un criterio sin evidencia automática no
+entra en la nota (los demás se reescalan) y la nota queda provisoria. Escribe
+`calificaciones.csv` (UTF-8 con BOM, columnas `Usuario`, `Calificación`, `Provisoria`, `Revisión`,
+el logro de cada criterio y `Comentarios de retroalimentación`: en Moodle, *Importar
+calificaciones → CSV*, vincular `Usuario` con el nombre de usuario) y `devoluciones/<alumno>.md`.
+
+```bash
+dredd eval tp01 --all
+deckard exercise rubric potencia --eval-results tp01-submissions --salida tp01-notas
+```
+
 ### 2. Endurecimiento de Tests (`deckard verify fuzz`)
 Delega en `dredd fuzz-gen` para generar casos de prueba exhaustivos con libFuzzer:
 ```bash

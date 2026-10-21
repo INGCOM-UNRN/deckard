@@ -210,8 +210,15 @@ def cmd_rubric(
     salida_dredd: Optional[Path] = typer.Option(None, "--dredd", help="Ruta para exportar configuración JSON para Dredd."),
     pesos: Optional[str] = typer.Option(None, "--pesos", help="Ponderaciones clave=valor separadas por coma."),
     banco: Path = typer.Option(Path("banco"), "--banco", "-b", help="Directorio raíz del banco."),
+    eval_results: Optional[Path] = typer.Option(None, "--eval-results", exists=True, help="Resultados de dredd (directorio del curso, de un estudiante o un rNi/ con hallazgos.json y auditoria.json): calcula la nota 0–10 de cada estudiante."),
+    salida_notas: Path = typer.Option(Path("calificaciones"), "--salida", "-o", help="Con --eval-results: directorio para calificaciones.csv (Moodle) y devoluciones/<alumno>.md."),
 ) -> None:
-    """Calibra pesos de evaluación y genera especificaciones de rúbricas para Dredd y Markdown."""
+    """Calibra pesos de evaluación y genera especificaciones de rúbricas para Dredd y Markdown.
+
+    Con `--eval-results`, además, califica: aplica la rúbrica a lo que evaluó dredd (la última
+    revisión de cada estudiante) y escribe `calificaciones.csv` para importar en Moodle y una
+    devolución en Markdown por estudiante.
+    """
     from deckard.core.rubric import calibrar_pesos_rubrica, generar_rubrica_markdown, exportar_rubrica_dredd_json
 
     pesos_dict = None
@@ -237,7 +244,9 @@ def cmd_rubric(
         console.print("[bold red]No se encontraron ejercicios.[/bold red]")
         raise typer.Exit(code=1)
 
-    pesos_cal = calibrar_pesos_rubrica(pesos_dict)
+    # La rúbrica propia del ejercicio, salvo que se indiquen pesos; con una guía, la de la cátedra.
+    propia = ejercicios[0].rubrica if len(ejercicios) == 1 else None
+    pesos_cal = calibrar_pesos_rubrica(pesos_dict or propia)
     tabla = Table(title=f"Rúbrica Calibrada ({ejercicios[0].id if len(ejercicios) == 1 else 'Guía'})")
     tabla.add_column("Criterio", style="bold")
     tabla.add_column("Ponderación", justify="right", style="cyan")
@@ -254,6 +263,32 @@ def cmd_rubric(
     if salida_dredd:
         exportar_rubrica_dredd_json(ejercicios, salida_dredd, pesos=pesos_cal)
         console.print(f"[bold green]✓ Configuración Dredd exportada en:[/bold green] [cyan]{salida_dredd}[/cyan]")
+
+    if eval_results is not None:
+        _calificar(eval_results, pesos_cal, salida_notas, ejercicios[0].titulo if len(ejercicios) == 1 else target)
+
+
+def _calificar(eval_results: Path, pesos: dict, salida: Path, titulo: str) -> None:
+    from deckard.core.calificacion import calificar, escribir_calificaciones, leer_resultados
+
+    revisiones = leer_resultados(eval_results)
+    if not revisiones:
+        console.print(f"[bold red]No hay resultados de dredd en {eval_results}[/bold red] "
+                      "(rNi/hallazgos.json y auditoria.json): corré antes «dredd eval».")
+        raise typer.Exit(code=1)
+    calificaciones = [calificar(r, pesos) for r in revisiones]
+    csv_path, devoluciones = escribir_calificaciones(calificaciones, salida, titulo)
+    tabla = Table(title=f"Calificaciones ({len(calificaciones)} estudiantes)")
+    for columna in ("Estudiante", "Revisión", "Nota", "Observación"):
+        tabla.add_column(columna)
+    for c in calificaciones:
+        nota = f"{c.nota:.2f}" + (" *" if c.provisoria else "")
+        tabla.add_row(c.alumno, c.revision, nota, c.motivo or "")
+    console.print(tabla)
+    if any(c.provisoria for c in calificaciones):
+        console.print("[yellow]* Nota provisoria: hay criterios sin evidencia automática o evaluaciones sin terminar.[/yellow]")
+    console.print(f"[bold green]✓ Calificaciones para Moodle:[/bold green] [cyan]{csv_path}[/cyan] · "
+                  f"devoluciones en [cyan]{devoluciones}[/cyan]")
 
 
 @app.command("init-io-files")

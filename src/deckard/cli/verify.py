@@ -69,6 +69,46 @@ def _escribir_log_fallos_verificacion(
     ruta_log.write_text("\n".join(lineas), encoding="utf-8")
 
 
+def _rubrica_cruda(dir_ej: Path, ej) -> object:
+    """La rúbrica como está escrita en ejercicio.yaml (el modelo ya convirtió los pesos a número)."""
+    import yaml
+
+    meta = dir_ej / "ejercicio.yaml" if dir_ej.is_dir() else dir_ej
+    try:
+        datos = yaml.safe_load(meta.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return ej.rubrica
+    return datos.get("rubrica", ej.rubrica) if isinstance(datos, dict) else ej.rubrica
+
+
+def _verificar_rubricas(candidatos, as_json: bool) -> None:
+    from deckard.core.calificacion import validar_rubrica
+
+    informes = []
+    for dir_ej, ej in candidatos:
+        cruda = _rubrica_cruda(Path(dir_ej), ej)
+        pruebas = [t.nombre for t in [*ej.tests_funciones, *ej.tests_ocultos]]
+        avisos: List[str] = []
+        if cruda is not None and not isinstance(cruda, dict):
+            errores = ["«rubrica» tiene que ser un mapa criterio: peso."]
+        else:
+            errores, avisos = validar_rubrica(cruda, pruebas)
+        informes.append({"id": ej.id, "ok": not errores, "errores": errores, "avisos": avisos})
+    fallidos = sum(1 for i in informes if not i["ok"])
+    if as_json:
+        console.print_json(data={"total": len(informes), "fallidos": fallidos, "ejercicios": informes})
+    else:
+        tabla = Table(title="Coherencia de las rúbricas")
+        tabla.add_column("Ejercicio", style="cyan")
+        tabla.add_column("Veredicto", justify="center")
+        tabla.add_column("Detalle")
+        for i in informes:
+            veredicto = "[green]✓ OK[/green]" if i["ok"] else "[red]✗ Incoherente[/red]"
+            tabla.add_row(i["id"], veredicto, "\n".join(i["errores"] + [f"[dim]{a}[/dim]" for a in i["avisos"]]))
+        console.print(tabla)
+    raise typer.Exit(code=2 if fallidos else 0)
+
+
 @verify_app.command("run", hidden=True)
 def verify(
     ejercicio_id: Optional[str] = typer.Argument(None, help="Id del ejercicio o patrón comodín (ej: '*', 'invertir-*')."),
@@ -81,8 +121,12 @@ def verify(
     log_fallos: Optional[Path] = typer.Option(None, "--log-fallos", "-l", help="Ruta de archivo para guardar el reporte de ejercicios fallidos."),
     ripley: Optional[str] = typer.Option(None, "--ripley", help="Ruta al binario/zipapp de ripley."),
     as_json: bool = typer.Option(False, "--json", help="Salida en formato JSON estructurado."),
+    rubrica: bool = typer.Option(False, "--rubric", help="Sólo la coherencia de la rúbrica (sin ripley): pesos que sumen 100 % y pruebas que existan. Sale con 2 si alguna no cumple."),
 ) -> None:
-    """Verifica la solución modelo de ejercicios usando ripley check."""
+    """Verifica la solución modelo de ejercicios usando ripley check.
+
+    Con `--rubric` verifica en cambio la rúbrica de cada ejercicio, sin compilar nada.
+    """
     if ejercicio_id is None and not all_exercises and not tema and not bloom and not pendientes:
         console.print("[yellow]Especificá un id de ejercicio, un patrón comodín (ej: '*') o usá --all para verificar todo el banco.[/yellow]")
         raise typer.Exit(code=1)
@@ -94,6 +138,9 @@ def verify(
     if not candidatos:
         console.print(f"[red]No se encontraron ejercicios en '{banco}' con el criterio especificado.[/red]")
         raise typer.Exit(code=1)
+
+    if rubrica:
+        _verificar_rubricas(candidatos, as_json)
 
     es_unico_puntual = len(candidatos) == 1 and pat and not any(c in pat for c in "*?[]") and not all_exercises
     if es_unico_puntual:

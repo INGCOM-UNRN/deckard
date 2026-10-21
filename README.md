@@ -118,8 +118,14 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 ### 5. Verificación, Fuzzing y Arnés (`deckard verify`)
 * `deckard verify [id]`: Verificación de reglas pedagógicas y compilación con `ripley check`. Admite comodines, `--all`, reporte de fallos (`--log-fallos`) y salida estructurada `--json`.
   > Los ejercicios que fallan se marcan automáticamente como no-verificados (`verificado: false`).
+* `deckard verify --rubric [id]`: Coherencia de la rúbrica sin compilar: los pesos tienen que sumar 100 % y cada criterio `test:<nombre>` tiene que ser una prueba del ejercicio. Sale con 2 si alguna no cumple.
 * `deckard verify fuzz [id]`: Fuzzing y endurecimiento de testcases con `dredd fuzz-gen` y libFuzzer.
 * `deckard verify test-harness <id> <spec>`: Arnés de pruebas con inyección de fallos de memoria vía `vasquez inject`.
+
+### Rúbricas y notas (`deckard exercise rubric`)
+* `deckard exercise rubric <id> [--md R.md] [--dredd R.json]`: Rúbrica del ejercicio (la de `rubrica:` en `ejercicio.yaml` o la de la cátedra) en Markdown o para dredd.
+* `deckard exercise rubric <id> --eval-results <dir> [--salida calificaciones]`: Califica lo que evaluó `dredd eval` (de cada estudiante, su última revisión: `rNi/auditoria.json` y `hallazgos.json`). Escribe `calificaciones.csv` para importar en el libro de calificaciones de Moodle (`Usuario`, `Calificación` 0–10, logro por criterio y comentario) y `devoluciones/<alumno>.md`.
+  > Cada criterio vale entre 0 y 1: `tests_unitarios` (pruebas aprobadas), `test:<nombre>` (esa prueba), y los de hallazgos (`estilo_gaff`, `sanitizers_memoria`, `antipatrones_spunkmeyer`, `modularidad_y_diseño` o una categoría de yutani como `memoria`) descuentan 0,25 por error, 0,10 por advertencia y 0,05 por estilo; las fugas descuentan 0,25 en `sanitizers_memoria`. Si no compila, la nota es 0. Un criterio sin evidencia automática deja la nota *provisoria*.
 
 ### 6. Diagnóstico, Auditoría y Calidad
 * `deckard doctor`: Diagnóstico integral del estado de herramientas externas (gcc, typst, daedalus, ripley, git).
