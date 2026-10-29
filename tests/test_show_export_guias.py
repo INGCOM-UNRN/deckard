@@ -162,7 +162,7 @@ def test_renderizar_ejercicio_html(banco_con_tests):
     )
     assert "<title>Invertir Vector — invertir-vector</title>" in html
     assert "Pistas Progresivas" in html
-    assert "Solución Modelo" in html
+    assert "Solución Canónica" in html
     assert "caso_01" in html
 
 
@@ -179,9 +179,9 @@ def test_export_markdown_ejercicio(banco_con_tests, tmp_path):
     assert out_md.is_file()
     contenido = out_md.read_text(encoding="utf-8")
     assert "# Invertir Vector" in contenido
-    assert "### 💡 Pistas Progresivas" in contenido
-    assert "### ✓ Solución Modelo" in contenido
-    assert "### 🧪 Casos de Prueba" in contenido
+    assert "## 💡 Pistas Progresivas" in contenido
+    assert "## ✓ Solución Modelo" in contenido
+    assert "## 🧪 Casos de Prueba" in contenido
 
 
 def test_export_markdown_guia(guias_dir, banco_con_tests, tmp_path):

@@ -245,7 +245,7 @@ def cmd_rubric(
         raise typer.Exit(code=1)
 
     # La rúbrica propia del ejercicio, salvo que se indiquen pesos; con una guía, la de la cátedra.
-    propia = ejercicios[0].rubrica if len(ejercicios) == 1 else None
+    propia = ejercicios[0].pesos_rubrica if len(ejercicios) == 1 else None
     pesos_cal = calibrar_pesos_rubrica(pesos_dict or propia)
     tabla = Table(title=f"Rúbrica Calibrada ({ejercicios[0].id if len(ejercicios) == 1 else 'Guía'})")
     tabla.add_column("Criterio", style="bold")

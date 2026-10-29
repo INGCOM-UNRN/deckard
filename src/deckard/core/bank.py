@@ -63,6 +63,15 @@ def cargar_ejercicio(dir_ejercicio: Path) -> Ejercicio:
         datos["solucion_c"] = solucion_archivo.read_text(encoding="utf-8")
     else:
         datos.setdefault("solucion_c", "")
+
+    # La cabecera de prototipos (<id>.h, o la única .h del ejercicio) la muestran las plantillas.
+    cabecera = dir_ej / f"{datos.get('id') or dir_ej.name}.h"
+    if not cabecera.is_file():
+        otras = sorted(dir_ej.glob("*.h"))
+        cabecera = otras[0] if len(otras) == 1 else cabecera
+    if cabecera.is_file() and p.is_dir():
+        datos["header_c"] = cabecera.read_text(encoding="utf-8")
+        datos["header_name"] = cabecera.name
     try:
         return Ejercicio(**datos)
     except ValidationError as exc:

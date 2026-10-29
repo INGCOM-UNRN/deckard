@@ -60,6 +60,30 @@ class CasoTestFuncion(BaseModel):
     postcondiciones: Optional[str] = None   # Aserción sobre efectos colaterales (ej: "vec[0] == 5")
 
 
+class ReferenciasTeoria(BaseModel):
+    """Dónde está la teoría del ejercicio: página del apunte, sección y bibliografía."""
+
+    model_config = ConfigDict(validate_assignment=True)
+
+    apunte: Optional[str] = None            # URL o ruta de la página del apunte
+    seccion: Optional[str] = None
+    bibliografia: List[str] = Field(default_factory=list)
+
+
+class CriterioRubrica(BaseModel):
+    """Un criterio de la rúbrica y su peso en porcentaje."""
+
+    model_config = ConfigDict(validate_assignment=True)
+
+    criterio: str
+    peso: float
+
+
+Dificultad = Literal["inicial", "intermedia", "avanzada", "desafio"]
+TipoEjercicio = Literal["concepto", "practica_guiada", "desafio", "parcial_previo"]
+VisibilidadSolucion = Literal["publica", "desplegable", "protegida", "oculta"]
+
+
 class DiagramaSpec(BaseModel):
     """Diagrama o esquema de estructura de datos asociado al enunciado."""
 
@@ -91,7 +115,7 @@ class Ejercicio(BaseModel):
     tests_funciones: List[CasoTestFuncion] = Field(default_factory=list)
     tests_ocultos: List[CasoTestFuncion] = Field(default_factory=list, description="Casos de prueba ocultos para autograding ciego.")
     benchmarks: Dict[str, str] = Field(default_factory=dict, description="Límites o benchmarks de rendimiento de tiempo y memoria.")
-    rubrica: Optional[Dict[str, float]] = Field(default=None, description="Ponderación porcentual de criterios de evaluación.")
+    rubrica: Optional[List[CriterioRubrica]] = Field(default=None, description="Criterios de evaluación con su peso en porcentaje ([{criterio, peso}]; también se acepta {criterio: peso}).")
     acsl_contratos: List[str] = Field(default_factory=list, description="Especificaciones formales ACSL.")
     archivos_prueba: Dict[str, str] = Field(default_factory=dict, description="Archivos de prueba requeridos (ej. binarios, csv, stdin/stdout fixtures).")
     diagramas: List[DiagramaSpec] = Field(default_factory=list, description="Diagramas de estructuras de datos (ascii, mermaid, plantuml).")
@@ -101,6 +125,23 @@ class Ejercicio(BaseModel):
     dependencias: List[str] = Field(default_factory=list, description="IDs de ejercicios requeridos previamente.")
     archivos_adicionales: List[str] = Field(default_factory=list, description="Archivos de cabecera, Makefile o datos adicionales.")
     archivos: Dict[str, str] = Field(default_factory=dict, description="Mapeo de nombre de archivo a contenido.")
+
+    # Metadatos pedagógicos de las plantillas de enunciados (ejercicio.md / guia.md): todos opcionales.
+    unidad: Optional[int | str] = Field(default=None, description="Unidad del programa.")
+    modulo: Optional[str] = Field(default=None, description="Bloque curricular.")
+    subtema: Optional[str] = Field(default=None, description="Foco específico dentro del tema.")
+    dificultad: Optional[Dificultad] = None
+    esfuerzo_lineas_codigo: Optional[int] = Field(default=None, ge=1, description="Líneas de código estimadas de la solución.")
+    tipo: Optional[TipoEjercicio] = Field(default=None, description="Rol didáctico: concepto, practica_guiada, desafio o parcial_previo.")
+    obligatorio: Optional[bool] = None
+    prerrequisitos: List[str] = Field(default_factory=list, description="Temas (del grafo temático) o ids de ejercicios que hay que saber antes.")
+    correquisitos: List[str] = Field(default_factory=list, description="Temas o ids que se trabajan en paralelo.")
+    siguiente_recomendado: List[str] = Field(default_factory=list, description="Ids de ejercicios para seguir.")
+    referencias_teoria: Optional[ReferenciasTeoria] = None
+    visibilidad_solucion: Optional[VisibilidadSolucion] = Field(default=None, description="publica, desplegable (por omisión), protegida u oculta (la solución nunca se exporta).")
+    # Cabecera <id>.h del banco: la carga `bank.cargar_ejercicio`; no va al ejercicio.yaml.
+    header_c: str = Field(default="", exclude=True)
+    header_name: str = Field(default="", exclude=True)
 
     @property
     def nivel(self) -> NivelBloom:
@@ -125,6 +166,18 @@ class Ejercicio(BaseModel):
     @property
     def solucion(self) -> str:
         return self.solucion_c
+
+    @property
+    def pesos_rubrica(self) -> Optional[Dict[str, float]]:
+        """La rúbrica como {criterio: peso}, la forma que usan la calibración y la calificación."""
+        if not self.rubrica:
+            return None
+        return {c.criterio: c.peso for c in self.rubrica}
+
+    @property
+    def solucion_publicable(self) -> bool:
+        """False si la solución no se exporta nunca (`visibilidad_solucion: oculta`)."""
+        return self.visibilidad_solucion != "oculta"
 
     @property
     def tiene_funciones(self) -> bool:
@@ -187,6 +240,14 @@ class Ejercicio(BaseModel):
                 return NivelBloom(int(v_clean))
         return v
 
+    @field_validator("rubrica", mode="before")
+    @classmethod
+    def rubrica_desde_mapa(cls, v):
+        # Forma anterior del banco: {criterio: peso}.
+        if isinstance(v, dict):
+            return [{"criterio": str(k), "peso": peso} for k, peso in v.items()]
+        return v
+
     @field_validator("pistas")
     @classmethod
     def pistas_ordenadas_sin_vacias(cls, v: List[str]) -> List[str]:
@@ -244,6 +305,11 @@ class Ejercicio(BaseModel):
             datos.pop("benchmarks", None)
         if not self.rubrica:
             datos.pop("rubrica", None)
+        for vacio in ("prerrequisitos", "correquisitos", "siguiente_recomendado"):
+            if not datos.get(vacio):
+                datos.pop(vacio, None)
+        if datos.get("referencias_teoria") is not None and not datos["referencias_teoria"].get("bibliografia"):
+            datos["referencias_teoria"].pop("bibliografia", None)
         if not self.acsl_contratos:
             datos.pop("acsl_contratos", None)
         if not self.archivos_prueba:

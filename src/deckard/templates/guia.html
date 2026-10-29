@@ -1,3 +1,20 @@
+{#
+================================================================================
+PLANTILLA HTML/PDF: GUÍA DE TRABAJOS PRÁCTICOS (Deckard + WeasyPrint)
+================================================================================
+
+Propósito:
+    Generar documentos HTML completos y listos para compilar en PDF con WeasyPrint,
+    conteniendo colecciones estructuradas de ejercicios con resúmenes taxonómicos,
+    consignas, pistas y soluciones de cátedra.
+
+Variables de Contexto (Jinja2):
+    - guia: Metadatos de la guía (nombre, unidad, modulo, minutos_totales, distribucion_bloom).
+    - items: Lista de elementos de la guía (ejercicio, rol_guia).
+    - ejercicios: Lista alternativa para compatibilidad.
+    - incluir_soluciones, incluir_pistas, incluir_rubricas: Banderas booleanas.
+================================================================================
+#}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -59,12 +76,12 @@ h1.guia-title {
 .guia-summary-box {
     display: table;
     width: 100%;
-    background-color: #f8fafc;
+    background-color: #f1f5f9;
     border: 1px solid #cbd5e1;
     border-radius: 6px;
-    padding: 10px 14px;
+    padding: 8px 12px;
+    font-size: 8.5pt;
     margin-bottom: 24px;
-    font-size: 9pt;
 }
 
 .summary-row {
@@ -73,7 +90,7 @@ h1.guia-title {
 
 .summary-cell {
     display: table-cell;
-    padding: 2px 14px 2px 0;
+    padding: 3px 12px 3px 0;
 }
 
 .summary-label {
@@ -81,31 +98,18 @@ h1.guia-title {
     color: #475569;
 }
 
-.ejercicio-container {
-    margin-bottom: 28px;
+.ejercicio-block {
+    margin-bottom: 26px;
+    padding-bottom: 20px;
+    border-bottom: 1px dashed #cbd5e1;
     page-break-inside: avoid;
 }
 
-.ejercicio-header {
-    border-bottom: 1.5px solid #94a3b8;
-    padding-bottom: 4px;
-    margin-bottom: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-}
-
-.ejercicio-title {
+.ejercicio-titulo {
     font-size: 13pt;
     font-weight: 700;
     color: #0f172a;
-    margin: 0;
-}
-
-.ejercicio-meta-line {
-    font-size: 8.5pt;
-    color: #64748b;
-    margin-bottom: 8px;
+    margin: 0 0 6px 0;
 }
 
 .badge {
@@ -113,7 +117,7 @@ h1.guia-title {
     padding: 2px 6px;
     border-radius: 4px;
     font-weight: 600;
-    font-size: 8pt;
+    font-size: 7.5pt;
     text-transform: uppercase;
 }
 
@@ -123,12 +127,20 @@ h1.guia-title {
 .badge-bloom-4 { background-color: #ffedd5; color: #c2410c; }
 .badge-bloom-5 { background-color: #fce7f3; color: #be185d; }
 
-.enunciado-body {
-    text-align: justify;
+.badge-dif-inicial { background-color: #dcfce7; color: #15803d; }
+.badge-dif-intermedia { background-color: #e0e7ff; color: #4338ca; }
+.badge-dif-avanzada { background-color: #ffedd5; color: #c2410c; }
+.badge-dif-desafio { background-color: #fee2e2; color: #b91c1c; }
+
+.ejercicio-meta {
+    font-size: 8pt;
+    color: #475569;
+    margin-bottom: 10px;
 }
 
-.enunciado-body p {
-    margin: 0 0 8px 0;
+.ejercicio-consigna {
+    text-align: justify;
+    margin-bottom: 12px;
 }
 
 pre, code {
@@ -139,94 +151,138 @@ code {
     background-color: #f1f5f9;
     padding: 1px 4px;
     border-radius: 3px;
-    font-size: 9pt;
+    font-size: 8.5pt;
 }
 
 pre {
-    background-color: #f8fafc;
+    background-color: #0f172a;
+    color: #f8fafc;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 8pt;
+    overflow-x: auto;
+}
+
+.custom-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 8pt;
+}
+
+.custom-table th, .custom-table td {
     border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    padding: 8px 10px;
-    font-size: 8.5pt;
-    line-height: 1.4;
-    page-break-inside: avoid;
+    padding: 5px 7px;
+    text-align: left;
+}
+
+.custom-table th {
+    background-color: #f1f5f9;
+    font-weight: 700;
 }
 
 .pistas-box {
     background-color: #fffbeb;
-    border-left: 3px solid #f59e0b;
-    padding: 6px 10px;
-    margin-top: 10px;
-    font-size: 8.5pt;
+    border: 1px solid #fde68a;
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin: 10px 0;
+    font-size: 8pt;
+}
+
+.solucion-box {
+    background-color: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin: 12px 0;
     page-break-inside: avoid;
 }
 
-.pistas-title {
+.solucion-title {
     font-weight: 700;
-    color: #92400e;
+    color: #166534;
+    font-size: 9pt;
     margin-bottom: 4px;
 }
-
-.pistas-box ol {
-    margin: 0;
-    padding-left: 16px;
-}
-
-.apendice-soluciones {
-    page-break-before: always;
-    margin-top: 30px;
-}
-
-.solucion-item {
-    margin-bottom: 20px;
-    page-break-inside: avoid;
-}
-
-{{ extra_css or '' }}
 </style>
 </head>
 <body>
 
 <div class="guia-header">
-    <div class="guia-institution">Universidad Nacional de Río Negro · Cátedra de Programación 1</div>
+    <div class="guia-institution">Universidad Nacional de Río Negro — Programación 1</div>
     <h1 class="guia-title">{{ guia.nombre }}</h1>
 </div>
 
+{% set cant_ejercicios = items | length if items else (ejercicios | length if ejercicios else 0) %}
+{% set carga = guia.minutos_totales or total_minutos or 0 %}
+
 <div class="guia-summary-box">
     <div class="summary-row">
-        <div class="summary-cell"><span class="summary-label">Ejercicios:</span> {{ ejercicios | length }}</div>
-        <div class="summary-cell"><span class="summary-label">Carga total:</span> ~{{ guia.minutos_totales or total_minutos }} min</div>
-        {% if guia.distribucion_bloom %}
-        <div class="summary-cell"><span class="summary-label">Bloom:</span> 
+        <div class="summary-cell"><span class="summary-label">Ejercicios:</span> {{ cant_ejercicios }}</div>
+        <div class="summary-cell"><span class="summary-label">Carga total:</span> ~{{ carga }} min ({{ (carga / 60) | round(1) }} hs)</div>
+        {% if guia.unidad %}<div class="summary-cell"><span class="summary-label">Unidad:</span> {{ guia.unidad }}</div>{% endif %}
+        {% if guia.modulo %}<div class="summary-cell"><span class="summary-label">Módulo:</span> {{ guia.modulo }}</div>{% endif %}
+    </div>
+    {% if guia.distribucion_bloom %}
+    <div class="summary-row" style="margin-top:4px;">
+        <div class="summary-cell" colspan="4">
+            <span class="summary-label">Bloom:</span>
             {% for bloom_name, count in guia.distribucion_bloom.items() %}
-            {{ bloom_name }}: {{ count }}{% if not loop.last %}, {% endif %}
+            {{ bloom_name }}: {{ count }}{% if not loop.last %} · {% endif %}
             {% endfor %}
         </div>
-        {% endif %}
     </div>
+    {% endif %}
 </div>
 
-{% for ej_data in items %}
-<div class="ejercicio-container">
-    <div class="ejercicio-header">
-        <h2 class="ejercicio-title">{{ loop.index }}. {{ ej_data.ejercicio.titulo }}</h2>
-    </div>
-    <div class="ejercicio-meta-line">
-        <strong>Tema:</strong> {{ ej_data.ejercicio.tema }} &nbsp;·&nbsp;
-        <strong>Bloom:</strong> <span class="badge badge-bloom-{{ ej_data.ejercicio.bloom.value }}">B{{ ej_data.ejercicio.bloom.value }} {{ ej_data.ejercicio.bloom.name.lower() }}</span> &nbsp;·&nbsp;
-        <strong>Estimado:</strong> {{ ej_data.ejercicio.minutos_estimados }} min &nbsp;·&nbsp;
-        <code>{{ ej_data.ejercicio.id }}</code>
+{% for item in items %}
+{% set ej = item.ejercicio %}
+{% set bloom_val = ej.bloom.value if ej.bloom.value is defined else ej.bloom %}
+{% set bloom_nombres = {1: 'Recordar', 2: 'Comprender', 3: 'Aplicar', 4: 'Analizar', 5: 'Evaluar / Crear'} %}
+{% set bloom_nom = ej.bloom.name.capitalize() if ej.bloom.name is defined else bloom_nombres.get(bloom_val, 'Desconocido') %}
+
+<div class="ejercicio-block">
+    <h2 class="ejercicio-titulo">{{ loop.index }}. {{ ej.titulo }}</h2>
+    <div class="ejercicio-meta">
+        <strong>ID:</strong> <code>{{ ej.id }}</code> ·
+        <strong>Tema:</strong> {{ ej.tema }}{% if ej.subtema %} / {{ ej.subtema }}{% endif %} ·
+        <span class="badge badge-bloom-{{ bloom_val }}">B{{ bloom_val }} {{ bloom_nom }}</span> ·
+        {% if ej.dificultad %}<span class="badge badge-dif-{{ ej.dificultad }}">{{ ej.dificultad }}</span> ·{% endif %}
+        {% if item.rol_guia %}<strong>Rol:</strong> {{ item.rol_guia }} ·{% endif %}
+        <strong>Carga:</strong> ~{{ ej.minutos_estimados }} min
     </div>
 
-    <div class="enunciado-body">
-        {{ ej_data.enunciado_html | safe }}
+    <div class="ejercicio-consigna">
+        {{ item.enunciado_html | safe if item.enunciado_html is defined else (ej.enunciado_html | safe if ej.enunciado_html is defined else ej.enunciado_md) }}
     </div>
 
-    {% if incluir_pistas and ej_data.ejercicio.pistas %}
+    {% if ej.funciones %}
+    <table class="custom-table">
+        <thead>
+            <tr>
+                <th style="width: 30%;">Función</th>
+                <th style="width: 20%;">Retorno</th>
+                <th style="width: 50%;">Parámetros</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in ej.funciones %}
+            <tr>
+                <td><code>{{ f.nombre }}</code></td>
+                <td><code>{{ f.retorno or 'void' }}</code></td>
+                <td><code>{{ f.parametros or 'void' }}</code></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if (incluir_pistas is not defined or incluir_pistas) and ej.pistas %}
     <div class="pistas-box">
-        <div class="pistas-title">💡 Pistas:</div>
-        <ol>
-            {% for pista in ej_data.ejercicio.pistas %}
+        <strong>💡 Pistas didácticas:</strong>
+        <ol style="margin: 4px 0 0 0; padding-left: 18px;">
+            {% for pista in ej.pistas %}
             <li>{{ pista }}</li>
             {% endfor %}
         </ol>
@@ -236,15 +292,14 @@ pre {
 {% endfor %}
 
 {% if incluir_soluciones %}
-<div class="apendice-soluciones">
-    <div class="guia-header">
-        <h1 class="guia-title">Apéndice: Soluciones Modelo</h1>
-    </div>
-    {% for ej_data in items %}
-    {% if ej_data.ejercicio.solucion_c %}
-    <div class="solucion-item">
-        <h3>{{ loop.index }}. {{ ej_data.ejercicio.titulo }} (<code>{{ ej_data.ejercicio.id }}</code>)</h3>
-        <pre><code class="language-c">{{ ej_data.ejercicio.solucion_c }}</code></pre>
+<div style="page-break-before: always;">
+    <h1 class="guia-title">📖 Apéndice: Soluciones Canónicas</h1>
+    {% for item in items %}
+    {% set ej = item.ejercicio %}
+    {% if ej.solucion_c and ej.visibilidad_solucion != 'oculta' %}
+    <div class="solucion-box">
+        <div class="solucion-title">{{ loop.index }}. {{ ej.titulo }} (<code>{{ ej.id }}</code>)</div>
+        <pre><code class="language-c">{{ ej.solucion_c }}</code></pre>
     </div>
     {% endif %}
     {% endfor %}

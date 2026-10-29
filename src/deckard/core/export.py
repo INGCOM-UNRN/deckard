@@ -21,6 +21,11 @@ from deckard.core.export_plantillas import (  # noqa: F401
     markdown_a_html,
 )
 
+def _publicable(ejercicio: Ejercicio) -> Ejercicio:
+    """El ejercicio sin su solución si es `visibilidad_solucion: oculta`: no sale en ninguna exportación."""
+    return ejercicio if ejercicio.solucion_publicable else ejercicio.model_copy(update={"solucion_c": ""})
+
+
 def renderizar_ejercicio_md(
     ejercicio: Ejercicio,
     dir_ejercicio: Optional[Path] = None,
@@ -32,6 +37,7 @@ def renderizar_ejercicio_md(
     dir_banco: Optional[Path] = None,
 ) -> Tuple[str, Optional[Path]]:
     """Renderiza un ejercicio a Markdown usando plantilla Jinja2."""
+    ejercicio = _publicable(ejercicio)
     template_str, base_path = buscar_plantilla(
         template_nombre_o_ruta, tipo="ejercicio", extension=".md", dir_banco=dir_banco
     )
@@ -60,6 +66,7 @@ def renderizar_guia_md(
     dir_banco: Optional[Path] = None,
 ) -> Tuple[str, Optional[Path]]:
     """Renderiza una guía completa a Markdown usando plantilla Jinja2."""
+    ejercicios_con_dir = [(d, _publicable(e)) for d, e in ejercicios_con_dir]
     template_str, base_path = buscar_plantilla(
         template_nombre_o_ruta, tipo="guia", extension=".md", dir_banco=dir_banco
     )
@@ -128,6 +135,7 @@ def renderizar_ejercicio_typst(
     dir_banco: Optional[Path] = None,
 ) -> Tuple[str, Optional[Path]]:
     """Renderiza un ejercicio a formato Typst (.typ) con badges visuales."""
+    ejercicio = _publicable(ejercicio)
     template_str, base_path = buscar_plantilla(
         template_nombre_o_ruta, tipo="ejercicio", extension=".typ.j2", dir_banco=dir_banco
     )
@@ -158,6 +166,7 @@ def renderizar_guia_typst(
     dos_columnas: bool = False,
 ) -> Tuple[str, Optional[Path]]:
     """Renderiza una guía completa a formato Typst (.typ) con badges por ejercicio."""
+    ejercicios_con_dir = [(d, _publicable(e)) for d, e in ejercicios_con_dir]
     template_str, base_path = buscar_plantilla(
         template_nombre_o_ruta, tipo="guia", extension=".typ.j2", dir_banco=dir_banco
     )
@@ -201,6 +210,7 @@ def renderizar_ejercicio_html(
     via_markdown_pipeline: bool = False,
 ) -> Tuple[str, Optional[Path]]:
     """Renderiza un ejercicio a HTML."""
+    ejercicio = _publicable(ejercicio)
     if via_markdown_pipeline or (template_nombre_o_ruta and template_nombre_o_ruta.endswith((".md", ".markdown"))):
         md_text, md_base = renderizar_ejercicio_md(
             ejercicio=ejercicio,
@@ -268,6 +278,7 @@ def renderizar_guia_html(
     via_markdown_pipeline: bool = False,
 ) -> Tuple[str, Optional[Path]]:
     """Renderiza una guía completa a HTML."""
+    ejercicios_con_dir = [(d, _publicable(e)) for d, e in ejercicios_con_dir]
     if via_markdown_pipeline or (template_nombre_o_ruta and template_nombre_o_ruta.endswith((".md", ".markdown"))):
         md_text, md_base = renderizar_guia_md(
             guia_meta=guia_meta,

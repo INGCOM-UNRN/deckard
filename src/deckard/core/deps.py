@@ -126,10 +126,13 @@ def build_dependency_graph(exercises: List[Tuple[Path, Ejercicio]]) -> Dependenc
     # 2. Conectar dependencias explícitas en yaml
     for _p, ej in exercises:
         # Prerrequisitos explícitos si existen en metadata
-        explicit_prereqs = getattr(ej, "prerrequisitos", None) or []
-        for prereq in explicit_prereqs:
-            if prereq in graph.nodes:
+        # (los prerrequisitos que son temas, no ids, los cubre la progresión temática del paso 3)
+        for prereq in [*ej.dependencias, *ej.prerrequisitos]:
+            if prereq in graph.nodes and prereq != ej.id:
                 graph.add_edge(prereq, ej.id)
+        for siguiente in ej.siguiente_recomendado:
+            if siguiente in graph.nodes and siguiente != ej.id:
+                graph.add_edge(ej.id, siguiente)
 
     # 3. Conectar heurísticamente por progresión temática y niveles Bloom
     theme_buckets: Dict[str, List[Tuple[Path, Ejercicio]]] = {}

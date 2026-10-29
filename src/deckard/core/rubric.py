@@ -37,7 +37,7 @@ def calibrar_pesos_rubrica(pesos_custom: Optional[Dict[str, float]] = None) -> D
 
 def generar_rubrica_markdown(ej: Ejercicio, pesos: Optional[Dict[str, float]] = None) -> str:
     """Genera una especificación de rúbrica en formato Markdown estructurado."""
-    pesos_calibrados = calibrar_pesos_rubrica(pesos or ej.rubrica)
+    pesos_calibrados = calibrar_pesos_rubrica(pesos or ej.pesos_rubrica)
 
     lineas = [
         f"# Rúbrica de Corrección: {ej.titulo}",
@@ -92,7 +92,7 @@ def exportar_rubrica_dredd_json(
     }
 
     for ej in ejercicios:
-        pesos_ej = calibrar_pesos_rubrica(ej.rubrica) if ej.rubrica else pesos_calibrados
+        pesos_ej = calibrar_pesos_rubrica(ej.pesos_rubrica) if ej.rubrica else pesos_calibrados
         config_dredd["ejercicios"][ej.id] = {
             "titulo": ej.titulo,
             "bloom": int(ej.bloom),

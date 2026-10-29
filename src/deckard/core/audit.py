@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Set, Tuple
 
 from deckard.core.bank import buscar_ejercicios, cargar_ejercicio
 from deckard.core.models import Ejercicio
@@ -134,6 +134,18 @@ def auditar_ejercicio(dir_ej: Path, min_chars: int = 100) -> ReporteSaludEjercic
     )
 
 
+def referencias_rotas(ej, ids: Set[str], temas: Set[str]) -> List[str]:
+    """Referencias del itinerario que no existen: ids de ejercicio (o temas, donde se aceptan)."""
+    alertas = []
+    for campo, admite_temas in (("dependencias", False), ("siguiente_recomendado", False),
+                                ("prerrequisitos", True), ("correquisitos", True)):
+        for ref in getattr(ej, campo):
+            if ref not in ids and not (admite_temas and ref in temas):
+                que = "ni ejercicio ni tema" if admite_temas else "ejercicio"
+                alertas.append(f"{campo}: «{ref}» no es {que} del banco")
+    return alertas
+
+
 def auditar_banco(
     banco: Path,
     patron: Optional[str] = None,
@@ -149,10 +161,14 @@ def auditar_banco(
 ) -> List[ReporteSaludEjercicio]:
     """Audita todos los ejercicios del banco aplicando los filtros solicitados."""
     candidatos = buscar_ejercicios(banco, patron=patron, tema=tema, bloom=bloom, tag=tag, recursivo=True)
+    todos = buscar_ejercicios(banco, recursivo=True)
+    ids = {ej.id for _, ej in todos}
+    temas = {ej.tema for _, ej in todos}
     reportes: List[ReporteSaludEjercicio] = []
 
-    for dir_ej, _ in candidatos:
+    for dir_ej, ej in candidatos:
         rep = auditar_ejercicio(dir_ej, min_chars=min_chars)
+        rep.alertas.extend(referencias_rotas(ej, ids, temas))
 
         if solo_pobres and not rep.redaccion_pobre:
             continue

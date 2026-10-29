@@ -73,5 +73,8 @@ def esquema_json() -> Dict[str, Any]:
     from deckard.core.models import Ejercicio
 
     esquema = Ejercicio.model_json_schema()
+    # Lo que el cargador lee de otros archivos del ejercicio (<id>.h) no se escribe en ejercicio.yaml.
+    for campo in ("header_c", "header_name"):
+        esquema["properties"].pop(campo, None)
     return {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": ID_ESQUEMA,
             "title": "ejercicio.yaml (deckard)", **{k: v for k, v in esquema.items() if k != "title"}}

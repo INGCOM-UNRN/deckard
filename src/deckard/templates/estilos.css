@@ -218,3 +218,37 @@ pre code {
     page-break-before: always;
     margin-top: 30px;
 }
+
+/* Clases adicionales para soporte de metadata extendida y Ripley */
+.badge-dif-inicial { background-color: #dcfce7; color: #15803d; }
+.badge-dif-intermedia { background-color: #e0e7ff; color: #4338ca; }
+.badge-dif-avanzada { background-color: #ffedd5; color: #c2410c; }
+.badge-dif-desafio { background-color: #fee2e2; color: #b91c1c; }
+
+.ripkg-banner {
+    background-color: #eff6ff;
+    border-left: 4px solid #3b82f6;
+    padding: 8px 12px;
+    margin: 12px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 8.5pt;
+}
+
+.custom-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 8.5pt;
+    page-break-inside: avoid;
+}
+
+.custom-table th, .custom-table td {
+    border: 1px solid #cbd5e1;
+    padding: 6px 8px;
+    text-align: left;
+}
+
+.custom-table th {
+    background-color: #f1f5f9;
+    font-weight: 700;
+}

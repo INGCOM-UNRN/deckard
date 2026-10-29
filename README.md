@@ -224,6 +224,39 @@ obligatorio «titulo»», ««id» = 'Mal Id' no tiene el formato esperado»). E
 `# yaml-language-server: $schema=…/ejercicio.schema.json` al principio del archivo, el editor lo
 valida mientras se escribe.
 
+Además de los campos de siempre (`id`, `titulo`, `tema`, `bloom`, `minutos_estimados`, `pistas`,
+`funciones`, `tests_funciones`…), un ejercicio puede declarar los metadatos que muestran las
+plantillas del repositorio de enunciados (todos opcionales):
+
+```yaml
+unidad: 6
+modulo: Estructuras enlazadas
+subtema: arboles_binarios
+dificultad: intermedia            # inicial | intermedia | avanzada | desafio
+esfuerzo_lineas_codigo: 80
+tipo: practica_guiada             # concepto | practica_guiada | desafio | parcial_previo
+obligatorio: true
+prerrequisitos: [punteros, lista-enlazada]   # temas o ids de ejercicios
+correquisitos: [recursividad]
+siguiente_recomendado: [arena-allocator]     # ids de ejercicios
+referencias_teoria:
+  apunte: https://ingcom-unrn-p1.github.io/apunte/arboles
+  seccion: Recorridos
+  bibliografia: ["K&R, cap. 6"]
+visibilidad_solucion: desplegable # publica | desplegable | protegida | oculta
+rubrica:                          # también vale la forma anterior {criterio: peso}
+- {criterio: tests_unitarios, peso: 70}
+- {criterio: estilo_gaff, peso: 30}
+```
+
+La cabecera `<id>.h` del ejercicio se lee del banco y aparece en el enunciado exportado. Con
+`visibilidad_solucion: oculta` la solución no sale en ninguna exportación, aunque se pida con
+`-s`. `prerrequisitos`, `dependencias` y `siguiente_recomendado` son aristas del grafo de
+`deckard bank deps`, y `deckard verify audit` avisa de las referencias a ejercicios (o temas) que no
+están en el banco. Las plantillas de exportación son las del repositorio de enunciados; deckard
+busca primero `templates/` junto al banco (`<banco>/../templates/`), así que un banco con sus
+propias plantillas las usa sin `--template`.
+
 <!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
 
 ## Referencia rápida

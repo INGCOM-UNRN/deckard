@@ -8,6 +8,13 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Agregado
 
+- **ejercicio**: campos de las plantillas del repositorio de enunciados: `unidad`, `modulo`, `subtema`, `dificultad`, `esfuerzo_lineas_codigo`, `tipo`, `obligatorio`, `prerrequisitos`, `correquisitos`, `siguiente_recomendado`, `referencias_teoria` y `visibilidad_solucion` (con `oculta`, la solución no se exporta nunca); la cabecera `<id>.h` se carga para las plantillas. El itinerario entra en el grafo de dependencias y `verify audit` avisa de referencias rotas. Esquema JSON regenerado.
+- **export**: plantillas Markdown/HTML/CSS por defecto tomadas del repositorio de enunciados (metadatos, itinerario en Mermaid, rúbrica, cabecera, MyST); se buscan también en `templates/` junto al banco.
+
+### Cambiado
+
+- **ejercicio**: `rubrica` es una lista de `{criterio, peso}` (la forma de las plantillas); el mapa `{criterio: peso}` se sigue aceptando al leer. `pesos_rubrica` da el mapa para la calibración y la calificación.
+
 - **guide practica**: crea la práctica desde la guía compuesta sobre plantilla-TP (con su `tp.sh`), con las librerías declaradas en la guía (de la cátedra, a crear o reutilizadas de una guía anterior) y, del lado del docente, `dredd.mk`, las pruebas ocultas y `targets.json` para dredd; si la práctica ya existe, muestra las diferencias (Ola 30).
 - **guías**: `librerias` y `targets_docente` en la spec y en la guía compuesta (`compose` los traslada); `spec validate` revisa las librerías reutilizadas y, con `--remoto`, los commits de la cátedra.
 

@@ -68,6 +68,8 @@ def buscar_plantilla(
     if dir_banco:
         candidatos_locales.append(Path(dir_banco) / "templates" / nombre_archivo)
         candidatos_locales.append(Path(dir_banco) / "plantillas" / nombre_archivo)
+        # Repositorio de enunciados: banco/ y templates/ son hermanos.
+        candidatos_locales.append(Path(dir_banco).parent / "templates" / nombre_archivo)
 
     for cand in candidatos_locales:
         if cand.is_file():

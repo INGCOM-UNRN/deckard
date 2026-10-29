@@ -30,7 +30,7 @@ def ejercicio_a_markdown(ej: Ejercicio) -> str:
             for f in ej.funciones
         ]
     if ej.rubrica:
-        metadata["rubrica"] = ej.rubrica
+        metadata["rubrica"] = [c.model_dump() for c in ej.rubrica]
     if ej.benchmarks:
         metadata["benchmarks"] = ej.benchmarks
 

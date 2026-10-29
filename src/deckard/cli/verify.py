@@ -77,8 +77,14 @@ def _rubrica_cruda(dir_ej: Path, ej) -> object:
     try:
         datos = yaml.safe_load(meta.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
-        return ej.rubrica
-    return datos.get("rubrica", ej.rubrica) if isinstance(datos, dict) else ej.rubrica
+        return ej.pesos_rubrica
+    if not isinstance(datos, dict) or "rubrica" not in datos:
+        return ej.pesos_rubrica
+    cruda = datos["rubrica"]
+    # La forma de las plantillas de enunciados, [{criterio, peso}], equivale al mapa criterio: peso.
+    if isinstance(cruda, list) and all(isinstance(c, dict) and "criterio" in c for c in cruda):
+        return {str(c["criterio"]): c.get("peso") for c in cruda}
+    return cruda
 
 
 def _verificar_rubricas(candidatos, as_json: bool) -> None:
@@ -90,7 +96,7 @@ def _verificar_rubricas(candidatos, as_json: bool) -> None:
         pruebas = [t.nombre for t in [*ej.tests_funciones, *ej.tests_ocultos]]
         avisos: List[str] = []
         if cruda is not None and not isinstance(cruda, dict):
-            errores = ["«rubrica» tiene que ser un mapa criterio: peso."]
+            errores = ["«rubrica» tiene que ser una lista de {criterio, peso} o un mapa criterio: peso."]
         else:
             errores, avisos = validar_rubrica(cruda, pruebas)
         informes.append({"id": ej.id, "ok": not errores, "errores": errores, "avisos": avisos})

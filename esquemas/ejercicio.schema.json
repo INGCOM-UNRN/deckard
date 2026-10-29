@@ -82,6 +82,25 @@
       "title": "CasoTestFuncion",
       "type": "object"
     },
+    "CriterioRubrica": {
+      "description": "Un criterio de la rúbrica y su peso en porcentaje.",
+      "properties": {
+        "criterio": {
+          "title": "Criterio",
+          "type": "string"
+        },
+        "peso": {
+          "title": "Peso",
+          "type": "number"
+        }
+      },
+      "required": [
+        "criterio",
+        "peso"
+      ],
+      "title": "CriterioRubrica",
+      "type": "object"
+    },
     "DiagramaSpec": {
       "description": "Diagrama o esquema de estructura de datos asociado al enunciado.",
       "properties": {
@@ -163,6 +182,44 @@
       ],
       "title": "NivelBloom",
       "type": "integer"
+    },
+    "ReferenciasTeoria": {
+      "description": "Dónde está la teoría del ejercicio: página del apunte, sección y bibliografía.",
+      "properties": {
+        "apunte": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Apunte"
+        },
+        "seccion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seccion"
+        },
+        "bibliografia": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Bibliografia",
+          "type": "array"
+        }
+      },
+      "title": "ReferenciasTeoria",
+      "type": "object"
     }
   },
   "description": "Un ejercicio práctico versionado como unidad atómica de cátedra.",
@@ -256,17 +313,17 @@
     "rubrica": {
       "anyOf": [
         {
-          "additionalProperties": {
-            "type": "number"
+          "items": {
+            "$ref": "#/$defs/CriterioRubrica"
           },
-          "type": "object"
+          "type": "array"
         },
         {
           "type": "null"
         }
       ],
       "default": null,
-      "description": "Ponderación porcentual de criterios de evaluación.",
+      "description": "Criterios de evaluación con su peso en porcentaje ([{criterio, peso}]; también se acepta {criterio: peso}).",
       "title": "Rubrica"
     },
     "acsl_contratos": {
@@ -348,6 +405,165 @@
       "description": "Mapeo de nombre de archivo a contenido.",
       "title": "Archivos",
       "type": "object"
+    },
+    "unidad": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Unidad del programa.",
+      "title": "Unidad"
+    },
+    "modulo": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Bloque curricular.",
+      "title": "Modulo"
+    },
+    "subtema": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Foco específico dentro del tema.",
+      "title": "Subtema"
+    },
+    "dificultad": {
+      "anyOf": [
+        {
+          "enum": [
+            "inicial",
+            "intermedia",
+            "avanzada",
+            "desafio"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dificultad"
+    },
+    "esfuerzo_lineas_codigo": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Líneas de código estimadas de la solución.",
+      "title": "Esfuerzo Lineas Codigo"
+    },
+    "tipo": {
+      "anyOf": [
+        {
+          "enum": [
+            "concepto",
+            "practica_guiada",
+            "desafio",
+            "parcial_previo"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Rol didáctico: concepto, practica_guiada, desafio o parcial_previo.",
+      "title": "Tipo"
+    },
+    "obligatorio": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Obligatorio"
+    },
+    "prerrequisitos": {
+      "description": "Temas (del grafo temático) o ids de ejercicios que hay que saber antes.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Prerrequisitos",
+      "type": "array"
+    },
+    "correquisitos": {
+      "description": "Temas o ids que se trabajan en paralelo.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Correquisitos",
+      "type": "array"
+    },
+    "siguiente_recomendado": {
+      "description": "Ids de ejercicios para seguir.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Siguiente Recomendado",
+      "type": "array"
+    },
+    "referencias_teoria": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReferenciasTeoria"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "visibilidad_solucion": {
+      "anyOf": [
+        {
+          "enum": [
+            "publica",
+            "desplegable",
+            "protegida",
+            "oculta"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "publica, desplegable (por omisión), protegida u oculta (la solución nunca se exporta).",
+      "title": "Visibilidad Solucion"
     }
   },
   "required": [
