@@ -112,7 +112,8 @@ def test_init_tests_p1_test_and_assert(sample_bank: Path):
     codigo_p1 = generar_suite_tests_c(ej, framework="p1_test")
     assert '#include "p1_test.h"' in codigo_p1
     assert "TEST(test_potencia_1)" in codigo_p1
-    assert "ASSERT_EQ(potencia(2, 0), 1);" in codigo_p1
+    # p1_test no tiene ASSERT_EQ (N-DECKARD-07): la igualdad va con ASSERT_TRUE_MSG.
+    assert "ASSERT_TRUE_MSG((potencia(2, 0)) == (1)" in codigo_p1
 
     # Framework assert
     codigo_assert = generar_suite_tests_c(ej, framework="assert")

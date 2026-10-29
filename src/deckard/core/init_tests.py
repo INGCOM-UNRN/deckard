@@ -2,10 +2,27 @@
 
 from __future__ import annotations
 
+import re
+
 from pathlib import Path
 from typing import Optional
 
 from deckard.core.models import Ejercicio
+
+
+def _c_texto(texto: str) -> str:
+    return texto.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _a_p1_test(linea: str) -> str:
+    """Un bloque de código del banco escrito con assert() pasa a las aserciones de p1_test."""
+    return re.sub(r"\bassert\s*\(", "ASSERT_TRUE(", linea)
+
+
+def _runner_p1(ej: Ejercicio, nombres: list[str]) -> list[str]:
+    # TEST_SUITE_BEGIN_ARGS es el arranque de p1_test (INIT_TESTS no existe: la suite no compilaba).
+    return (["int main(int argc, char **argv) {", f'    TEST_SUITE_BEGIN_ARGS("{_c_texto(ej.titulo)}", argc, argv);']
+            + [f"    RUN_TEST({n});" for n in nombres] + ["    return TEST_REPORT();", "}"])
 
 
 def generar_suite_tests_c(ej: Ejercicio, framework: str = "p1_test") -> str:
@@ -35,14 +52,10 @@ def generar_suite_tests_c(ej: Ejercicio, framework: str = "p1_test") -> str:
         # Template básico
         if usa_p1:
             lineas.append('TEST(test_inicial) {')
-            lineas.append('    ASSERT_TRUE(true, "Verificación básica de inicialización");')
+            lineas.append('    ASSERT_TRUE_MSG(true, "Verificación básica de inicialización");')
             lineas.append('}')
             lineas.append("")
-            lineas.append('int main(void) {')
-            lineas.append(f'    INIT_TESTS("{ej.titulo}");')
-            lineas.append('    RUN_TEST(test_inicial);')
-            lineas.append('    return TEST_REPORT();')
-            lineas.append('}')
+            lineas += _runner_p1(ej, ["test_inicial"])
         else:
             lineas.append('void test_inicial(void) {')
             lineas.append('    assert(true);')
@@ -70,9 +83,11 @@ def generar_suite_tests_c(ej: Ejercicio, framework: str = "p1_test") -> str:
                     lineas.append(f"    /* {tf.descripcion} */")
                 if tf.codigo:
                     for cl in tf.codigo.strip().splitlines():
-                        lineas.append(f"    {cl}")
+                        lineas.append(f"    {_a_p1_test(cl)}")
                 elif tf.args is not None and tf.retorno_esperado is not None:
-                    lineas.append(f"    ASSERT_EQ({tf.funcion}({tf.args}), {tf.retorno_esperado});")
+                    llamada = f"{tf.funcion}({tf.args})"
+                    lineas.append(f'    ASSERT_TRUE_MSG(({llamada}) == ({tf.retorno_esperado}), '
+                                  f'"{_c_texto(llamada)} tendría que dar {_c_texto(tf.retorno_esperado)}");')
                 elif tf.args is not None:
                     lineas.append(f"    {tf.funcion}({tf.args});")
                 if tf.postcondiciones:
@@ -105,12 +120,12 @@ def generar_suite_tests_c(ej: Ejercicio, framework: str = "p1_test") -> str:
                 if not params or params == "void":
                     if fn.retorno == "void":
                         lineas.append(f"    {fn.nombre}();")
-                        lineas.append('    ASSERT_TRUE(true, "Ejecución sin fallos");')
+                        lineas.append('    ASSERT_TRUE_MSG(true, "Ejecución sin fallos");')
                     else:
-                        lineas.append(f"    ASSERT_EQ({fn.nombre}(), 0);")
+                        lineas.append(f"    ASSERT_TRUE(({fn.nombre}()) == 0);")
                 else:
                     lineas.append(f"    // TODO: Configurar parámetros ({params}) y verificar resultado")
-                    lineas.append('    ASSERT_TRUE(true, "Stub de test");')
+                    lineas.append('    ASSERT_TRUE_MSG(true, "Stub de test");')
                 lineas.append("}")
             else:
                 lineas.append(f"void {nombre_t}(void) {{")
@@ -129,12 +144,7 @@ def generar_suite_tests_c(ej: Ejercicio, framework: str = "p1_test") -> str:
 
     # Runner main
     if usa_p1:
-        lineas.append("int main(void) {")
-        lineas.append(f'    INIT_TESTS("{ej.titulo}");')
-        for nt in nombres_tests:
-            lineas.append(f"    RUN_TEST({nt});")
-        lineas.append("    return TEST_REPORT();")
-        lineas.append("}")
+        lineas += _runner_p1(ej, nombres_tests)
     else:
         lineas.append("int main(void) {")
         lineas.append(f'    printf("=== Suite de Pruebas: {ej.titulo} ===\\n");')
