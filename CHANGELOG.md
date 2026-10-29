@@ -8,6 +8,7 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Agregado
 
+- **exercise cubrir**: casos de ejercicios de funciones con un driver generado desde los prototipos, especificaciones de tyrell por función para revisar y la solución de la cátedra (con UBSan en modo trap) como referencia; en `tests/funciones/` (Ola 32).
 - **ejercicio**: campos de las plantillas del repositorio de enunciados: `unidad`, `modulo`, `subtema`, `dificultad`, `esfuerzo_lineas_codigo`, `tipo`, `obligatorio`, `prerrequisitos`, `correquisitos`, `siguiente_recomendado`, `referencias_teoria` y `visibilidad_solucion` (con `oculta`, la solución no se exporta nunca); la cabecera `<id>.h` se carga para las plantillas. El itinerario entra en el grafo de dependencias y `verify audit` avisa de referencias rotas. Esquema JSON regenerado.
 - **export**: plantillas Markdown/HTML/CSS por defecto tomadas del repositorio de enunciados (metadatos, itinerario en Mermaid, rúbrica, cabecera, MyST); se buscan también en `templates/` junto al banco.
 

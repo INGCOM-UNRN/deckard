@@ -123,6 +123,9 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 * `deckard verify fuzz [id]`: Fuzzing y endurecimiento de testcases con `dredd fuzz-gen` y libFuzzer.
 * `deckard verify test-harness <id> <spec>`: Arnés de pruebas con inyección de fallos de memoria vía `vasquez inject`.
 
+### Casos de ejercicios de funciones (`deckard exercise cubrir`)
+* `deckard exercise cubrir <id>… [--banco B] [--sin-cobertura] [--regenerar-specs]`: para un ejercicio cuyos `funciones:` tienen parámetros y retorno escalares, escribe `tests/funciones/`: un `driver.c` que lee `<función> <args>` por línea y escribe el resultado, una especificación de tyrell por función (`tyrell/<función>.yaml`, con rangos propuestos para que el docente los revise) y los casos `<función>_NN.in/.out`, con la solución de la cátedra como referencia y los casos que suman ramas (`tyrell cubrir`). Los casos en que la solución desborda o tiene comportamiento indefinido se descartan. Las especificaciones existentes se respetan: se corrigen y se vuelve a correr. ripley no lee esa carpeta; dredd sí, enlazando el archivo del alumno con el driver.
+
 ### Rúbricas y notas (`deckard exercise rubric`)
 * `deckard exercise rubric <id> [--md R.md] [--dredd R.json]`: Rúbrica del ejercicio (la de `rubrica:` en `ejercicio.yaml` o la de la cátedra) en Markdown o para dredd.
 * `deckard exercise rubric <id> --eval-results <dir> [--salida calificaciones]`: Califica lo que evaluó `dredd eval` (de cada estudiante, su última revisión: `rNi/auditoria.json` y `hallazgos.json`). Escribe `calificaciones.csv` para importar en el libro de calificaciones de Moodle (`Usuario`, `Calificación` 0–10, logro por criterio y comentario) y `devoluciones/<alumno>.md`.

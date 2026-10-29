@@ -27,6 +27,7 @@ from deckard.cli import (  # noqa: F401  (el import registra los comandos vía s
     improve,
     qol_a,
     qol_b,
+    cubrir,
 )
 
 # Después de registrar todo: cada comando suelto pasa a su grupo y el nombre viejo queda como alias
