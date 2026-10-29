@@ -106,6 +106,7 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 * `deckard guide show <guia>`: Muestra ejercicios, carga horaria, temas y enunciados.
 * `deckard guide compose <spec>`: Algoritmo knapsack de balanceo pedagógico.
 * `deckard guide add <guia> <ejercicio>`: Incorpora un ejercicio y recalcula métricas.
+* `deckard guide practica <guia> <destino>`: Crea la práctica sobre plantilla-TP desde la guía (ver «Prácticas desde la guía»).
 * `deckard guide remove <guia> <ejercicio>`: Remueve un ejercicio y actualiza la guía.
 * `deckard guide verify <guia>`: Verifica todas las soluciones modelo de la guía con Ripley.
 * `deckard guide export <guia>`: Exporta la guía completa a PDF, Markdown o HTML.
@@ -154,6 +155,37 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
   > El proveedor se configura igual que en el resto del ecosistema (yutani.ia): `--proveedor`, la variable `P1_IA_PROVEEDOR` o `~/.config/p1/ia.toml` (con `[herramientas.deckard]` para lo propio de deckard). Sin nada configurado se usa OpenCode, con `opencode-sandboxed` si está instalado. Cada aspecto envía sólo lo que usa (`clarity` y `bloom` no llevan la solución ni las pistas; `starter` no ve la solución; el ID y la duración no viajan; la solución va sin comentarios ni líneas en blanco; las etiquetas MyST y los `---` del final se reponen al aplicar), `edge-cases` y `examples` devuelven sólo su sección, y en GIFT no viajan los comentarios ni las categorías. `deckard doctor` muestra qué proveedor quedó y si está disponible. Para Gemini o Claude hace falta el extra `ai` (`uv tool install "deckard[ecosistema,languagetool,ai] @ git+https://github.com/INGCOM-UNRN/deckard"`) y `GEMINI_API_KEY` o `ANTHROPIC_API_KEY`; con un servidor local u OpenCode, nada más.
 
 ---
+
+## 🏫 Prácticas desde la guía
+
+Las prácticas nuevas se crean **desde su guía compuesta**, la forma más simple de que banco,
+guía, práctica y corrección no se desincronicen. Además de los ejercicios, la guía declara sus
+librerías y los targets de la corrección:
+
+```yaml
+nombre: Guía 3 — Cadenas
+ejercicios:
+- {id: invertir-cadena, librerias: [cadenas]}    # como ./tp.sh add-ex invertir-cadena cadenas
+- {id: palindromo, librerias: [cadenas, arreglos]}
+librerias:
+- {nombre: p1_test, origen: catedra, repositorio: "https://github.com/INGCOM-UNRN-P1/treadstone", commit: "41b344d…"}
+- {nombre: cadenas, origen: crear, descripcion: "Utilidades de cadenas", forma: plana}
+- {nombre: pila, origen: crear, ejercicio: tda-pila}          # API y pruebas desde ese ejercicio del banco
+- {nombre: arreglos, origen: reutilizar, guia: guia-2}        # la escribió el alumno en la guía 2
+targets_docente:
+- {nombre: ocultas, descripcion: "Casos no publicados", tipo: pruebas_ocultas, peso: 30}
+- {nombre: memoria, descripcion: "Sin pérdidas de memoria", tipo: memcheck, peso: 20, visible: true}
+- {nombre: estilo, descripcion: "Estilo de la cátedra", receta: ["@mkdir -p .dredd", "ripley check . --json --exit-zero > .dredd/ripley.json"], produce: json, archivo: .dredd/ripley.json}
+```
+
+`deckard guide practica guia-3 ../tp3` arma la práctica sobre plantilla-TP con su `tp.sh`: los
+ejercicios con el id del banco, enunciado, cabeceras, código inicial, `prueba.c` (p1_test) y los
+casos públicos (nunca la solución ni los ocultos), y `PRACTICA.md` con cómo traer las librerías
+reutilizadas. Del lado del docente deja `../tp3-dredd/` con `dredd.mk` (targets `dredd-…`, que
+la plantilla incluye con `-include dredd.mk`), las pruebas ocultas en `.dredd/` y `targets.json`
+para dredd. Si la práctica ya existe, muestra qué cambiaría (`--aplicar` lo escribe; lo que ya no
+está en la guía no se borra). `deckard spec validate` revisa las librerías (`--remoto`: avisa si
+una de la cátedra quedó en un commit viejo), y `compose` las traslada de la spec a la guía.
 
 ## 📖 Documentación Detallada
 

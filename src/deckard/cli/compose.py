@@ -57,6 +57,11 @@ def compose(
             "ejercicios": [{"id": e.id, "minutos": e.minutos_estimados,
                             "bloom": int(e.bloom), "tema": e.tema}
                            for e in seleccion.ejercicios],
+            # Para `deckard guide practica` (Ola 30): pasan tal cual de la spec a la guía.
+            **({"librerias": [lib.model_dump(exclude_none=True, exclude_defaults=True) | {"nombre": lib.nombre, "origen": lib.origen}
+                              for lib in spec.librerias]} if spec.librerias else {}),
+            **({"targets_docente": [t.model_dump(exclude_none=True, exclude_defaults=True) | {"nombre": t.nombre, "descripcion": t.descripcion}
+                                    for t in spec.targets_docente]} if spec.targets_docente else {}),
         }, f, allow_unicode=True, sort_keys=False)
     console.print(f"[green]✓ Guía escrita[/green] en {salida}")
 

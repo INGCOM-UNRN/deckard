@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from enum import IntEnum
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class NivelBloom(IntEnum):
@@ -251,6 +251,85 @@ class Ejercicio(BaseModel):
         return datos
 
 
+_REF_FIJADA = re.compile(r"^(?:[0-9a-f]{40}|v\d+\.\d+\.\d+)$")
+PLANTILLA_LIBRERIA = "https://github.com/INGCOM-UNRN-P1/plantilla-libreria"
+
+
+class LibreriaGuia(BaseModel):
+    """Una librería de la práctica (Ola 30).
+
+    - `catedra`: de la cátedra, con su repositorio y un commit (o tag vX.Y.Z) fijado; se copia en
+      `libs/<nombre>` con un `.catedra` y no la edita el alumno (p1_test, bitmaps, sonido…).
+    - `crear`: la escribe el alumno en esta práctica; `plana` (`.c`/`.h` sueltos, `./tp.sh add-lib`)
+      o `estructurada` (desde `plantilla-libreria`). Con `ejercicio`, su API y sus pruebas salen de
+      ese ejercicio del banco (con `rol_familia = "libreria"`).
+    - `reutilizar`: la escribió el alumno en una guía anterior (`guia`); la trae desde su repositorio.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    nombre: str = Field(..., pattern=r"^[a-z_][a-z0-9_]*$")
+    origen: Literal["catedra", "crear", "reutilizar"]
+    descripcion: str = ""
+    repositorio: Optional[str] = None
+    commit: Optional[str] = None
+    forma: Literal["plana", "estructurada"] = "plana"
+    ejercicio: Optional[str] = None
+    guia: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _por_origen(self) -> "LibreriaGuia":
+        if self.origen == "catedra":
+            if not self.repositorio or not self.commit:
+                raise ValueError(f"la librería de la cátedra «{self.nombre}» necesita `repositorio` y `commit`")
+            if not _REF_FIJADA.match(self.commit):
+                raise ValueError(f"«{self.nombre}»: `commit` tiene que ser un commit completo (40 hex) o un tag vX.Y.Z")
+        if self.origen == "reutilizar" and not self.guia:
+            raise ValueError(f"la librería «{self.nombre}» se reutiliza: falta `guia` (la guía donde se creó)")
+        if self.origen != "catedra" and self.commit:
+            raise ValueError(f"«{self.nombre}»: `commit` es sólo para las librerías de la cátedra")
+        return self
+
+
+class TargetDocente(BaseModel):
+    """Un target de la corrección (`make dredd-<nombre>`) que dredd agrega con `dredd.mk` (Ola 30).
+
+    `tipo`: `comando` (la `receta` dada), `memcheck` y `fallos` (los targets de la plantilla),
+    `bench` (`ripley check --bench <cota>`) o `pruebas_ocultas` (los `tests_ocultos` del ejercicio,
+    compilados contra el código del alumno). `produce` dice qué lee dredd: el código de salida o un
+    archivo JSON o Markdown (`archivo`, relativo al ejercicio).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    nombre: str = Field(..., pattern=r"^[a-z0-9][a-z0-9-]*$")
+    descripcion: str
+    tipo: Literal["comando", "memcheck", "fallos", "bench", "pruebas_ocultas"] = "comando"
+    receta: List[str] = Field(default_factory=list)
+    cota: Optional[str] = None
+    ejercicios: List[str] = Field(default_factory=list)   # vacío: todos los de la guía
+    produce: Literal["codigo", "json", "markdown"] = "codigo"
+    archivo: Optional[str] = None
+    peso: float = Field(0.0, ge=0, le=100)
+    visible: bool = False
+
+    @model_validator(mode="after")
+    def _por_tipo(self) -> "TargetDocente":
+        if self.tipo == "comando" and not self.receta:
+            raise ValueError(f"el target «{self.nombre}» es un comando: falta `receta`")
+        if self.tipo != "comando" and self.receta:
+            raise ValueError(f"el target «{self.nombre}» es de tipo {self.tipo}: `receta` es sólo para `comando`")
+        if self.tipo == "bench" and not self.cota:
+            raise ValueError(f"el target «{self.nombre}» mide una cota: falta `cota` (p. ej. O(n))")
+        if self.produce != "codigo" and not self.archivo:
+            raise ValueError(f"el target «{self.nombre}» produce {self.produce}: falta `archivo`")
+        return self
+
+    @property
+    def target_make(self) -> str:
+        return f"dredd-{self.nombre}"
+
+
 class GuiaSpec(BaseModel):
     """Definición declarativa de una guía o parcial (`deckard compose`)."""
 
@@ -263,6 +342,8 @@ class GuiaSpec(BaseModel):
     cantidad_maxima: Optional[int] = None
     tipo_entrega: Optional[str] = Field(default=None, description="Tipo de entrega / modo de construcción: 'archivos_individuales', 'makefile', 'libreria', 'proyecto'")
     familias: List[str] = Field(default_factory=list, description="Familias de ejercicios requeridas o incluidas.")
+    librerias: List[LibreriaGuia] = Field(default_factory=list, description="Librerías de la práctica (cátedra, a crear, reutilizadas).")
+    targets_docente: List[TargetDocente] = Field(default_factory=list, description="Targets de la corrección (dredd.mk).")
 
 
 class Seleccion(BaseModel):

@@ -4,6 +4,17 @@ Todos los cambios notables de este proyecto se documentan en este archivo.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
 versiones según [SemVer](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Agregado
+
+- **guide practica**: crea la práctica desde la guía compuesta sobre plantilla-TP (con su `tp.sh`), con las librerías declaradas en la guía (de la cátedra, a crear o reutilizadas de una guía anterior) y, del lado del docente, `dredd.mk`, las pruebas ocultas y `targets.json` para dredd; si la práctica ya existe, muestra las diferencias (Ola 30).
+- **guías**: `librerias` y `targets_docente` en la spec y en la guía compuesta (`compose` los traslada); `spec validate` revisa las librerías reutilizadas y, con `--remoto`, los commits de la cátedra.
+
+### Corregido
+
+- **init_tests**: la suite generada para p1_test no compilaba: usaba `INIT_TESTS` y `ASSERT_EQ`, que p1_test no tiene, `ASSERT_TRUE` con dos argumentos y `assert()` de los bloques de código del banco (N-DECKARD-07).
+
 ## [0.2.0] - 2026-09-28
 
 Primera versión con registro de cambios; lo anterior está en el historial de git.

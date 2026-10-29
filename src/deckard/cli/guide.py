@@ -297,3 +297,77 @@ def guide_export_cmd(
     )
 
 
+
+
+@guide_app.command("practica")
+def guide_practica(
+    guia_archivo: str = typer.Argument(..., help="Guía compuesta (guias/<guía>/guia.yaml o su nombre)."),
+    destino: Path = typer.Argument(..., help="Carpeta de la práctica a crear (o a comparar, si ya existe)."),
+    banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio del banco."),
+    guias_dir: Path = typer.Option(Path("guias"), "--guias", help="Directorio de guías (para las librerías reutilizadas)."),
+    plantilla: str = typer.Option("https://github.com/INGCOM-UNRN-P1/plantilla-TP", "--plantilla",
+                                  help="plantilla-TP: una carpeta local o la URL del repositorio."),
+    dredd_dir: Optional[Path] = typer.Option(None, "--dredd", help="Dónde dejar dredd.mk y targets.json (por omisión, <destino>-dredd)."),
+    aplicar_cambios: bool = typer.Option(False, "--aplicar", help="Si la práctica ya existe, escribir lo agregado y lo cambiado."),
+) -> None:
+    """Crea la práctica desde la guía sobre plantilla-TP, con sus librerías y los targets del docente (Ola 30).
+
+    Los ejercicios se llaman como en el banco y llevan enunciado, cabeceras, código inicial,
+    prueba.c (p1_test) y los casos públicos (nunca la solución ni los casos ocultos). Del lado del
+    docente quedan dredd.mk (targets dredd-…), sus fuentes y targets.json para dredd. Si la
+    práctica ya existe, muestra qué cambiaría en vez de pisarla (con --aplicar, lo escribe).
+    """
+    import tempfile
+
+    from deckard.core.practica import (
+        PracticaInvalida, aplicar, armar_practica, comparar, escribir_dredd, indice, leer_guia, validar,
+    )
+
+    ruta = resolver_ruta_guia(guia_archivo, dir_guias=guias_dir)
+    if not ruta.is_file():
+        console.print(f"[red]No se encontró la guía '{guia_archivo}'.[/red]")
+        raise typer.Exit(code=1)
+    try:
+        guia = leer_guia(ruta)
+    except PracticaInvalida as exc:
+        for error in exc.errores:
+            console.print(f"[red]✗[/red] {error}")
+        raise typer.Exit(code=1) from exc
+    idx = indice(banco)
+    errores, avisos = validar(guia, banco, guias_dir, idx)
+    for aviso in avisos:
+        console.print(f"[yellow]•[/yellow] {aviso}")
+    if errores:
+        for error in errores:
+            console.print(f"[red]✗[/red] {error}")
+        raise typer.Exit(code=1)
+
+    salida_dredd = dredd_dir or destino.with_name(f"{destino.name}-dredd")
+    try:
+        if destino.exists() and any(destino.iterdir()):
+            with tempfile.TemporaryDirectory() as tmp:
+                nueva = Path(tmp) / destino.name
+                armar_practica(guia, banco, plantilla, nueva, idx)
+                dif = comparar(nueva, destino)
+                if dif.vacias:
+                    console.print(f"[green]✓ {destino} ya coincide con la guía.[/green]")
+                else:
+                    for marca, lista in (("+", dif.agregados), ("~", dif.cambiados), ("-", dif.quitados)):
+                        for rel in lista:
+                            console.print(f"  {marca} {rel}", markup=False, highlight=False)
+                    if aplicar_cambios:
+                        aplicar(nueva, destino, dif)
+                        console.print(f"[green]✓ Escritos {len(dif.agregados) + len(dif.cambiados)} archivos[/green]"
+                                      + (f"; {len(dif.quitados)} que ya no están en la guía no se borraron" if dif.quitados else "") + ".")
+                    else:
+                        console.print("[yellow]La práctica ya existe: esto es lo que cambiaría (con --aplicar se escribe).[/yellow]")
+        else:
+            armar_practica(guia, banco, plantilla, destino, idx)
+            console.print(f"[green]✓ Práctica creada en {destino}[/green] ({len(guia.ejercicios)} ejercicios, "
+                          f"{len(guia.librerias)} librerías declaradas).")
+        escritos = escribir_dredd(guia, banco, salida_dredd, idx)
+    except RuntimeError as exc:
+        console.print(f"[red]✗ {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    console.print(f"[green]✓ Para la corrección:[/green] {salida_dredd} ({len(guia.targets)} targets del docente, "
+                  f"{len(escritos)} archivos; no va al repositorio del alumno).")

@@ -148,10 +148,31 @@ def spec_validate(
     spec_archivo: str = typer.Argument(..., help="Ruta o nombre del archivo spec YAML."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
     guias_dir: Path = typer.Option(Path("guias"), "--guias", help="Directorio de guías."),
+    remoto: bool = typer.Option(False, "--remoto", help="Consultar con git si las librerías de la cátedra están en su último commit."),
 ) -> None:
-    """Verifica si el banco de ejercicios tiene suficientes candidatos para satisfacer el spec."""
+    """Verifica si el banco de ejercicios tiene suficientes candidatos para satisfacer el spec.
+
+    También revisa las librerías declaradas (que una reutilizada exista en su guía anterior) y,
+    con --remoto, avisa de las librerías de la cátedra fijadas a un commit viejo.
+    """
     ruta = _resolver_ruta_spec(spec_archivo, guias_dir)
-    spec = cargar_spec(ruta)
+    try:
+        spec = cargar_spec(ruta)
+    except Exception as exc:  # noqa: BLE001 - pydantic: librerías o targets mal declarados
+        from deckard.core.practica import _motivo
+        console.print(f"[bold red]✗ Spec inválida[/bold red]: {_motivo(exc)}")
+        raise typer.Exit(code=1) from exc
+    from deckard.core.practica import GuiaPractica, _reutilizada_existe, catedra_desactualizadas
+
+    problemas_libs = [e for lib in spec.librerias if lib.origen == "reutilizar"
+                      for e in _reutilizada_existe(lib, guias_dir)]
+    for problema in problemas_libs:
+        console.print(f"[red]✗[/red] {problema}")
+    if remoto:
+        for aviso in catedra_desactualizadas(GuiaPractica(ruta, spec.nombre, [], spec.librerias, spec.targets_docente)):
+            console.print(f"[yellow]•[/yellow] {aviso}")
+    if problemas_libs:
+        raise typer.Exit(code=1)
     diag = validar_spec(spec, banco)
 
     if diag["satisfactible"]:
