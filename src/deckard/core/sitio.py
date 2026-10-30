@@ -330,9 +330,17 @@ def generar_pagina_guia(g: GuiaSitio, salida: Path, banco: Path) -> Path:
 
 
 def generar_pagina_tema(
-    tema: str, lista: List[EjercicioSitio], temario: Temario, salida: Path, apunte: Optional[SitioApunte]
+    tema: str,
+    lista: List[EjercicioSitio],
+    temario: Temario,
+    salida: Path,
+    apunte: Optional[SitioApunte],
+    con_pagina: Optional[set[str]] = None,
 ) -> Path:
-    """Página de un tema: unidad, prerrequisitos, teoría en el apunte y sus ejercicios."""
+    """Página de un tema: unidad, prerrequisitos, teoría en el apunte y sus ejercicios.
+
+    Los prerrequisitos se enlazan sólo si tienen página (`con_pagina`: temas con ejercicios publicados).
+    """
     pagina = pagina_tema(tema)
     unidad = temario.unidad_de(tema)
     lineas = [f"# {temario.titulo(tema)}", ""]
@@ -340,7 +348,10 @@ def generar_pagina_tema(
         lineas.append(f"**Unidad:** {unidad.titulo}  ")
     reqs = temario.requisitos.get(tema, [])
     if reqs:
-        lineas.append("**Prerrequisitos:** " + ", ".join(f"[{temario.titulo(r)}]({_rel(pagina_tema(r), pagina)})" for r in reqs))
+        lineas.append("**Prerrequisitos:** " + ", ".join(
+            f"[{temario.titulo(r)}]({_rel(pagina_tema(r), pagina)})" if con_pagina is None or r in con_pagina
+            else temario.titulo(r)
+            for r in reqs))
     enlaces = _enlaces_apunte(tema, temario, apunte)
     if enlaces:
         lineas += ["", ":::{seealso} 📖 Teoría en el apunte"]
@@ -798,8 +809,9 @@ def construir_sitio(
 
     for e in ejercicios:
         generar_pagina_ejercicio(e, salida, banco, incluir_soluciones, temario, apunte)
-    for tema, lista in _por_tema(ejercicios).items():
-        generar_pagina_tema(tema, lista, temario, salida, apunte)
+    por_tema = _por_tema(ejercicios)
+    for tema, lista in por_tema.items():
+        generar_pagina_tema(tema, lista, temario, salida, apunte, set(por_tema))
     for g in guias:
         generar_pagina_guia(g, salida, banco)
     generar_portada(ejercicios, guias, temario, salida / "index.md")

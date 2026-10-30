@@ -310,6 +310,8 @@ def test_temas_y_ejercicios_enlazan_al_apunte(repo_apunte):
     assert tema.startswith("# Lazos")
     assert f"[Control]({APUNTE}/control-flujo)" in tema  # título de la página del apunte
     assert "[Aritmética](../aritmetica/tema-aritmetica.md)" in tema  # prerrequisito
+    aritmetica = (sitio / "consignas" / "aritmetica" / "tema-aritmetica.md").read_text(encoding="utf-8")
+    assert "**Prerrequisitos:** Sintaxis" in aritmetica  # sin ejercicios publicados: sin página, sin enlace
     assert "[Contar](contar.md)" in tema
 
     ejercicio = (sitio / "consignas" / "aritmetica" / "sumar.md").read_text(encoding="utf-8")
