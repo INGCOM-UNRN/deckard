@@ -257,6 +257,16 @@ temas:
     apunte: [apunte/bloque_2_memoria/2_punteros.md, apunte/bloque_2_memoria/6_aritmetica.md]
 ```
 
+Además, `reglas` señala normas de estilo: cada ejercicio cuyo código (solución o cabecera) coincide
+con la expresión regular `cuando` enlaza a la página de la regla en el apunte.
+
+```yaml
+reglas:
+  0x3004h:
+    apunte: reglas/30_memoria/0x3004h.md
+    cuando: '\b(struct|enum)\b'
+```
+
 Con eso, el enlace va en los dos sentidos:
 
 - **De enunciados al apunte**: `export myst` enlaza cada tema y cada ejercicio a sus páginas del
@@ -264,8 +274,9 @@ Con eso, el enlace va en los dos sentidos:
   se toman del TOC del apunte, que agrega `-1`, `-2`… cuando dos páginas tienen el mismo nombre.
 - **Del apunte a enunciados**: `export apunte` escribe en cada página citada un bloque
   «Ejercicios para practicar». Tiene el enlace al tema y los primeros ejercicios: verificados, de
-  menor nivel de Bloom y más cortos. Va entre las marcas `% deckard export apunte: inicio` y `…: fin`
-  (la primera vez, al final de la página), y se quita de las páginas que dejan de figurar.
+  menor nivel de Bloom y más cortos, y cómo resolverlos: descargar el `.ripkg` y verificar con
+  `ripley run`. Va entre las marcas `% deckard export apunte: inicio` y `…: fin` (la primera vez, al
+  final de la página), y se quita de las páginas que dejan de figurar.
 
 ```bash
 deckard export apunte ../apunte                # escribe los bloques (después, commitear el apunte)
@@ -284,6 +295,7 @@ deckard lint --apunte ../apunte               # además, la trazabilidad con el 
 deckard lint punteros                         # sólo los ejercicios cuyo id contiene «punteros»
 deckard lint --json                           # hallazgos y conteo por regla, para el CI
 deckard lint --compilar                       # además, compila el starter_code
+deckard lint --verificar-soluciones           # además, ripley check de cada solución publicable (lento)
 ```
 
 | Regla | Nivel | Qué revisa |
@@ -294,8 +306,11 @@ deckard lint --compilar                       # además, compila el starter_code
 | `esquema` | error | Falta el título o los minutos estimados. |
 | `tema-desconocido`, `dep-desconocida` | error (aviso con `publicar: false`) | El tema o un `dep:<tema>` no está en `temas.yaml`. |
 | `falta-enunciado` / `falta-solucion` | error / aviso | Un ejercicio publicable sin enunciado o sin solución. |
+| `firmas` | error | Una función declarada falta en la solución o cambia su tipo de retorno. |
+| `sin-pruebas` | aviso | Un ejercicio publicable sin `tests/*.in` ni `tests_funciones`. |
+| `solucion` | error | Con `--verificar-soluciones`, `ripley check` rechaza la solución de la cátedra. |
 | `guia-faltante` / `guia-no-publicado` | error / aviso | Una guía cita un ejercicio inexistente (o que no carga), o uno con `publicar: false`. |
-| `apunte-inexistente`, `apunte-fuera-del-toc` | error | `temas.yaml` cita una página del apunte que no existe o que no se publica. |
+| `apunte-inexistente`, `apunte-fuera-del-toc` | error | `temas.yaml` cita una página del apunte (de un tema o de una regla) que no existe o que no se publica. |
 | `tema-sin-apunte` | aviso | Un tema con ejercicios publicados no cita teoría. |
 | `apunte-desactualizado` | aviso | Hay que volver a correr `export apunte`. |
 | `starter` | error | Con `--compilar`, el `starter_code` no compila. |
