@@ -137,6 +137,8 @@ def cmd_lint(
     guias: Optional[Path] = typer.Option(None, "--guias", help="Directorio de guías (por omisión <banco>/../guias, si existe)."),
     apunte: Optional[Path] = typer.Option(None, "--apunte", help="Repositorio del apunte: revisa las páginas citadas y los bloques de export apunte."),
     compilar: bool = typer.Option(False, "--compilar", help="Compilar también el starter_code de cada ejercicio."),
+    verificar_soluciones: bool = typer.Option(False, "--verificar-soluciones", help="Pasar cada solución publicable por ripley check (lento)."),
+    ripley: Optional[str] = typer.Option(None, "--ripley", help="Ejecutable de ripley para --verificar-soluciones (por omisión, el del PATH)."),
     estricto: bool = typer.Option(False, "--estricto", help="Salir con 1 también si hay avisos."),
     as_json: bool = typer.Option(False, "--json", help="Salida en JSON (hallazgos y conteo por regla)."),
     maximo: int = typer.Option(200, "--max", min=0, help="Hallazgos a listar en la tabla (el conteo por regla es completo)."),
@@ -157,7 +159,8 @@ def cmd_lint(
     ruta_guias = guias if guias is not None else banco.parent / "guias"
     try:
         res = revisar_banco(banco, temas=ruta_temas if ruta_temas.is_file() else None,
-                            dir_guias=ruta_guias if ruta_guias.is_dir() else None, dir_apunte=apunte, patron=patron)
+                            dir_guias=ruta_guias if ruta_guias.is_dir() else None, dir_apunte=apunte, patron=patron,
+                            verificar_soluciones=verificar_soluciones, ruta_ripley=ripley)
     except SitioError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -197,8 +200,10 @@ def cmd_lint(
         conteo[h.regla] = conteo.get(h.regla, 0) + 1
     for regla, cantidad in sorted(conteo.items()):
         console.print(f"  {regla:22s} {cantidad:5d}  {REGLAS.get(regla, '')}")
-    color = "red" if falla else "yellow"
-    console.print(f"\n[bold {color}]{len(res.errores)} error(es) y {len(res.avisos)} aviso(s).[/bold {color}]")
+    if falla:
+        console.print(f"\n[bold red]{len(res.errores)} error(es) y {len(res.avisos)} aviso(s).[/bold red]")
+    else:
+        console.print(f"\n[bold green]✓ Conforme: sin errores ({len(res.avisos)} aviso(s)).[/bold green]")
     if falla:
         raise typer.Exit(code=1)
 

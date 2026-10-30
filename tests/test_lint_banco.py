@@ -15,10 +15,14 @@ from deckard.core.models import Ejercicio, NivelBloom
 runner = CliRunner()
 
 
-def _ej(banco: Path, eid: str, tema: str, carpeta: str | None = None, **extra) -> Path:
+def _ej(banco: Path, eid: str, tema: str, carpeta: str | None = None, pruebas: bool = True, **extra) -> Path:
     ej = Ejercicio(id=eid, titulo=eid.title(), tema=tema, bloom=NivelBloom.APLICAR, minutos_estimados=20,
                    enunciado_md=f"Consigna de {eid}.", solucion_c="int main(void) { return 0; }\n", **extra)
-    return guardar_ejercicio(ej, banco / (carpeta or tema))
+    dir_ej = guardar_ejercicio(ej, banco / (carpeta or tema))
+    if pruebas:
+        (dir_ej / "tests").mkdir(exist_ok=True)
+        (dir_ej / "tests" / "caso.in").write_text("1\n", encoding="utf-8")
+    return dir_ej
 
 
 @pytest.fixture()
@@ -120,3 +124,24 @@ def test_cli_lint_json_y_codigo_de_salida(repo):
     res = runner.invoke(app, base)
     assert res.exit_code == 1 and "tema-desconocido" in res.stdout and "1 error(es)" in res.stdout
     assert all(h["nivel"] in (ERROR, "aviso") for h in json.loads(runner.invoke(app, [*base, "--json"]).stdout)["hallazgos"])
+
+
+def test_firmas_y_pruebas(repo):
+    from deckard.core.models import FuncionSpec
+
+    _ej(repo / "banco", "firma-rota", "lazos", pruebas=False,
+        funciones=[FuncionSpec(nombre="contar_pares", retorno="int", parametros="const int v[], size_t n")])
+    hallazgos = {(h.regla, h.donde) for h in _revisar(repo).hallazgos}
+    assert ("firmas", "lazos/firma-rota") in hallazgos
+    assert ("sin-pruebas", "lazos/firma-rota") in hallazgos  # ni tests/*.in ni tests_funciones
+
+
+def test_verificar_soluciones_con_ripley(repo, tmp_path):
+    ripley = tmp_path / "ripley_falso.py"
+    ripley.write_text("import json, sys\nok = 'sumar' not in sys.argv[2]\n"
+                      "print(json.dumps({'ok': ok, 'summary': 'falla el caso 2'}))\nsys.exit(0 if ok else 1)\n",
+                      encoding="utf-8")
+    # con casos de E/S (los tiene el fixture), verify delega en ripley check
+    res = _revisar(repo, verificar_soluciones=True, ruta_ripley=f"python3 {ripley}")
+    solucion = [h for h in res.hallazgos if h.regla == "solucion"]
+    assert [(h.donde, h.mensaje) for h in solucion] == [("aritmetica/sumar", "falla el caso 2")]

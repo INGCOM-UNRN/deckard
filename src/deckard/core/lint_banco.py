@@ -15,6 +15,7 @@ from typing import Dict, List, Optional
 
 from deckard.core.bank import ARCHIVO_EJERCICIO, cargar_ejercicio
 from deckard.core.models import Ejercicio
+from deckard.core.signature_checker import verificar_firmas_ejercicio
 
 ERROR = "error"
 AVISO = "aviso"
@@ -30,9 +31,12 @@ REGLAS: Dict[str, str] = {
     "dep-desconocida": "una etiqueta dep:<tema> no es un tema de temas.yaml",
     "falta-enunciado": "un ejercicio publicable sin enunciado",
     "falta-solucion": "un ejercicio publicable sin solución de la cátedra",
+    "firmas": "una función declarada falta en la solución o tiene otro tipo de retorno",
+    "sin-pruebas": "un ejercicio publicable sin casos de prueba (tests/*.in ni tests_funciones)",
+    "solucion": "con --verificar-soluciones, ripley check rechaza la solución de la cátedra",
     "guia-faltante": "una guía cita un ejercicio que no está en el banco",
     "guia-no-publicado": "una guía cita un ejercicio con publicar: false",
-    "apunte-inexistente": "temas.yaml cita una página del apunte que no existe",
+    "apunte-inexistente": "temas.yaml cita una página del apunte (de un tema o de una regla de estilo) que no existe",
     "apunte-fuera-del-toc": "temas.yaml cita una página que no está en el TOC del apunte (no se publica)",
     "tema-sin-apunte": "un tema con ejercicios publicados no cita ninguna página del apunte",
     "apunte-desactualizado": "el bloque de ejercicios de una página del apunte no está al día (export apunte)",
@@ -102,6 +106,11 @@ def _revisar_ejercicio(ej: Ejercicio, dir_ej: Path, banco: Path, temas: Optional
             h(ERROR, "falta-enunciado", "se publica pero no tiene enunciado")
         if not (ej.solucion_c or "").strip():
             h(AVISO, "falta-solucion", "se publica sin solución de la cátedra")
+        for d in verificar_firmas_ejercicio(ej):
+            h(ERROR, "firmas", d.detalle)
+        pruebas = dir_ej / "tests"
+        if not (pruebas.is_dir() and any(pruebas.rglob("*.in"))) and not ej.tests_funciones:
+            h(AVISO, "sin-pruebas", "se publica sin casos de prueba")
     return out
 
 
@@ -111,8 +120,14 @@ def revisar_banco(
     dir_guias: Optional[Path] = None,
     dir_apunte: Optional[Path] = None,
     patron: Optional[str] = None,
+    verificar_soluciones: bool = False,
+    ruta_ripley: Optional[str] = None,
 ) -> ResultadoLint:
-    """Todos los hallazgos del banco; con `patron`, sólo los de los ejercicios cuyo id lo contiene."""
+    """Todos los hallazgos del banco; con `patron`, sólo los de los ejercicios cuyo id lo contiene.
+
+    Con `verificar_soluciones`, cada solución publicable pasa por `ripley check` (deckard no compila
+    por su cuenta; ver `deckard verify`).
+    """
     from deckard.core.sitio import _archivos_de_guias, cargar_temario, planificar_apunte, _por_tema, EjercicioSitio
     from deckard.core.guides import cargar_yaml_guia
     from deckard.core.trazabilidad import actualizar_paginas, archivos_del_toc, paginas_con_bloque
@@ -153,6 +168,12 @@ def revisar_banco(
             continue
         revisados += 1
         hallazgos += _revisar_ejercicio(ej, dir_ej, banco, requisitos)
+        if verificar_soluciones and ej.publicar and (ej.solucion_c or "").strip():
+            from deckard.core.verify import verificar_ejercicio
+
+            resultado = verificar_ejercicio(dir_ej, ruta_ripley=ruta_ripley)
+            if not resultado.ok:
+                hallazgos.append(Hallazgo(ERROR, "solucion", rel, resultado.detalle[:300]))
 
     if patron is not None:
         return ResultadoLint(revisados, hallazgos)
@@ -181,14 +202,16 @@ def revisar_banco(
         if dir_apunte is not None:
             myst = dir_apunte / "myst.yml"
             en_toc = set(archivos_del_toc(myst)) if myst.is_file() else None
-            for tema, paginas in sorted(temario.apunte.items()):
-                for ruta in paginas:
-                    pagina = ruta.partition("#")[0]
-                    if not (dir_apunte / pagina).is_file():
-                        hallazgos.append(Hallazgo(ERROR, "apunte-inexistente", f"temas.yaml:{tema}", f"{pagina} no existe en el apunte"))
-                    elif en_toc is not None and pagina not in en_toc:
-                        hallazgos.append(Hallazgo(ERROR, "apunte-fuera-del-toc", f"temas.yaml:{tema}",
-                                                  f"{pagina} no está en el TOC del apunte: el enlace no se publica"))
+            citadas = [(f"temas.yaml:{tema}", ruta) for tema, paginas in sorted(temario.apunte.items()) for ruta in paginas]
+            citadas += [(f"temas.yaml:reglas.{regla}", str(info.get("apunte")))
+                        for regla, info in sorted(temario.reglas.items()) if info.get("apunte")]
+            for donde_tema, ruta in citadas:
+                pagina = ruta.partition("#")[0]
+                if not (dir_apunte / pagina).is_file():
+                    hallazgos.append(Hallazgo(ERROR, "apunte-inexistente", donde_tema, f"{pagina} no existe en el apunte"))
+                elif en_toc is not None and pagina not in en_toc:
+                    hallazgos.append(Hallazgo(ERROR, "apunte-fuera-del-toc", donde_tema,
+                                              f"{pagina} no está en el TOC del apunte: el enlace no se publica"))
             if temario.sitios.get("enunciados") and temas is not None:
                 plan = planificar_apunte(banco, temas, dir_apunte)
                 cambiadas, _ = actualizar_paginas(dir_apunte, plan.bloques, escribir=False)
