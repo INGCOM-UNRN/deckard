@@ -134,7 +134,7 @@ deckard export guias/parcial1.yaml --type=pdf,md -o dist/
 ### 6. Diagnóstico, Auditoría y Calidad
 * `deckard doctor`: Diagnóstico integral del estado de herramientas externas (gcc, typst, daedalus, ripley, git).
 * `deckard stats`: Histogramas ASCII de distribución Bloom, carga horaria y resumen estadístico (`--json`).
-* `deckard lint`: Verificación y auditoría de starter code y compilabilidad previa a exportar.
+* `deckard lint`: Lint del banco antes de publicar: ejercicios, temario, guías y trazabilidad con el apunte (`--compilar` también compila el starter code).
 * `deckard deps` / `deckard graph`: Análisis y visualización de grafo de dependencias temáticas entre ejercicios.
 * `deckard audit`: Detección de placeholders, omisiones y estado de completitud pedagógica del banco.
 * `deckard languagetool`: Auditoría ortográfica y gramatical de consignas con LanguageTool.

@@ -8,6 +8,9 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Agregado
 
+- **trazabilidad con el apunte** (Ola 34): `temas.yaml` declara por tema las páginas del apunte (`apunte`) y las URL de los dos sitios (`sitios`). `export myst` genera una página por tema y enlaza temas y ejercicios a la teoría (con `--apunte`, slugs exactos del TOC del apunte); el catálogo suma `temas`, `url` y `apunte`. `export apunte` escribe en el apunte el bloque «Ejercicios para practicar» de cada tema, entre marcas, y con `--verificar` falla si está desactualizado.
+- **export myst**: verifica cada `.ripkg` publicado (hash del catálogo, manifiesto de la práctica, hashes del payload, sin pruebas ocultas) y termina con error si alguno falla.
+- **lint**: revisa el banco completo (temario y `dep:<tema>`, ids, YAML que no carga con su motivo, guías, trazabilidad con el apunte), informa por regla, `--json`, `--estricto` y `--apunte`; la compilación del `starter_code` pasa a `--compilar`.
 - **export myst**: el sitio MyST del repositorio de enunciados (antes `gestionar_consignas.py` de ese repositorio): páginas de ejercicios y guías, portada, grafo temático desde `temas.yaml`, el `toc` de `myst.yml` (entre los comentarios `# deckard export myst: inicio` y `…: fin`, sin tocar el resto), un `.ripkg` por ejercicio sin pruebas ocultas y `paquetes/catalogo.json` con ejercicios y guías. Pensado para el CI.
 - **ejercicio**: `tipo: laboratorio`, además de concepto, práctica guiada, desafío y parcial previo.
 - **ejercicio**: `publicar: false` deja el ejercicio en el banco pero fuera del sitio, los paquetes y el catálogo. Esquema JSON regenerado.

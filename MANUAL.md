@@ -216,11 +216,16 @@ deckard export myst                      # banco/ y guias/ → sitio/, y reescri
 deckard export myst --agrupar-unidades   # TOC por unidad en lugar de por tema
 ```
 
-- `sitio/consignas/<tema>/<id>.md`: una página por ejercicio (plantilla `ejercicio.md`), con enlace a su paquete.
+- `sitio/consignas/<tema>/<id>.md`: una página por ejercicio (plantilla `ejercicio.md`), con enlace a su paquete, a la página de su tema y a la teoría del apunte.
+- `sitio/consignas/<tema>/tema-<tema>.md`: una página por tema, con su unidad, prerrequisitos, teoría en el apunte y ejercicios.
 - `sitio/guias/<guia>.md`: una página por guía compuesta (las specs de `compose` no se publican).
 - `sitio/index.md` y `sitio/grafo_tematico.md`: portada con métricas y grafo de prerrequisitos.
 - `sitio/paquetes/<id>.ripkg`: un paquete por ejercicio, **sin** las pruebas de `tests/hidden/`.
-- `sitio/paquetes/catalogo.json`: ejercicios (metadatos, página, paquete con su SHA-256) y guías, para herramientas.
+- `sitio/paquetes/catalogo.json`: ejercicios (metadatos, página y URL, paquete con su SHA-256, teoría del apunte), temas y guías, para herramientas.
+
+Después de empaquetar, cada `.ripkg` se reabre y se verifica: su SHA-256 coincide con el catálogo,
+el manifiesto es de esa práctica, cada archivo del payload tiene el hash del manifiesto y no viajan
+pruebas ocultas. Si alguno falla, el comando termina con error.
 
 El TOC se escribe entre dos comentarios de `myst.yml`, dentro de `project:`; lo demás del
 archivo no se toca y lo que haya entre las marcas se reemplaza en cada corrida:
@@ -236,6 +241,64 @@ Los títulos, unidades, prerrequisitos y rutas de los temas salen de `temas.yaml
 de los paquetes y del catálogo. Los ejercicios inválidos se informan y el comando termina con
 error (salvo `--permitir-invalidos`). `sitio/` se borra en cada corrida, por eso no puede contener
 al banco ni a las guías.
+
+### Trazabilidad con el apunte (`deckard export apunte`)
+
+`temas.yaml` dice qué páginas del apunte explican cada tema y dónde están publicados los dos sitios:
+
+```yaml
+sitios:
+  apunte: https://ingcom-unrn-p1.github.io
+  enunciados: https://ingcom-unrn-p1.github.io/enunciados
+temas:
+  punteros:
+    titulo: "Punteros y Direccionamiento"
+    requiere: [funciones, arreglos]
+    apunte: [apunte/bloque_2_memoria/2_punteros.md, apunte/bloque_2_memoria/6_aritmetica.md]
+```
+
+Con eso, el enlace va en los dos sentidos:
+
+- **De enunciados al apunte**: `export myst` enlaza cada tema y cada ejercicio a sus páginas del
+  apunte. Las URL usan el slug que les da MyST (`2_punteros.md` → `/punteros`); con `--apunte <repo>`
+  se toman del TOC del apunte, que agrega `-1`, `-2`… cuando dos páginas tienen el mismo nombre.
+- **Del apunte a enunciados**: `export apunte` escribe en cada página citada un bloque
+  «Ejercicios para practicar». Tiene el enlace al tema y los primeros ejercicios: verificados, de
+  menor nivel de Bloom y más cortos. Va entre las marcas `% deckard export apunte: inicio` y `…: fin`
+  (la primera vez, al final de la página), y se quita de las páginas que dejan de figurar.
+
+```bash
+deckard export apunte ../apunte                # escribe los bloques (después, commitear el apunte)
+deckard export apunte ../apunte --verificar    # CI: sale con 1 si algún bloque está desactualizado
+deckard export apunte ../apunte --ejercicios 3 # ejercicios destacados por tema (5 por omisión)
+```
+
+### Lint del banco (`deckard lint`)
+
+Revisa, antes de publicar, lo que rompería el sitio, los paquetes o los enlaces. Sale con 1 si hay
+errores; con `--estricto`, también si hay avisos.
+
+```bash
+deckard lint                                  # banco/, temas.yaml y guias/ junto al banco
+deckard lint --apunte ../apunte               # además, la trazabilidad con el apunte
+deckard lint punteros                         # sólo los ejercicios cuyo id contiene «punteros»
+deckard lint --json                           # hallazgos y conteo por regla, para el CI
+deckard lint --compilar                       # además, compila el starter_code
+```
+
+| Regla | Nivel | Qué revisa |
+| :--- | :--- | :--- |
+| `yaml-invalido` | error | El `ejercicio.yaml` no carga o no valida (con el motivo). |
+| `id-repetido` | error | Dos ejercicios con el mismo id. |
+| `id-carpeta`, `tema-carpeta` | aviso | La carpeta no coincide con el id o el tema (`banco/<tema>/<id>/`). |
+| `esquema` | error | Falta el título o los minutos estimados. |
+| `tema-desconocido`, `dep-desconocida` | error (aviso con `publicar: false`) | El tema o un `dep:<tema>` no está en `temas.yaml`. |
+| `falta-enunciado` / `falta-solucion` | error / aviso | Un ejercicio publicable sin enunciado o sin solución. |
+| `guia-faltante` / `guia-no-publicado` | error / aviso | Una guía cita un ejercicio inexistente (o que no carga), o uno con `publicar: false`. |
+| `apunte-inexistente`, `apunte-fuera-del-toc` | error | `temas.yaml` cita una página del apunte que no existe o que no se publica. |
+| `tema-sin-apunte` | aviso | Un tema con ejercicios publicados no cita teoría. |
+| `apunte-desactualizado` | aviso | Hay que volver a correr `export apunte`. |
+| `starter` | error | Con `--compilar`, el `starter_code` no compila. |
 
 ---
 
@@ -365,7 +428,9 @@ deckard multiplex tp1_spec.yaml --padron 123456
 | `deckard spec <subcmd>` | Gestiona y valida especificaciones (`new`, `list`, `show`, `validate`, `edit`, `compose`). |
 | `deckard guide <subcmd>` | Gestiona guías compuestas (`list`, `show`, `compose`, `add`, `remove`, `verify`, `export`). |
 | `deckard export <obj>` | Exporta a PDF/MD/HTML (`--type=pdf,md`, `--pipeline-md`, `templates init/list`). |
-| `deckard export myst` | Sitio MyST del banco: páginas de ejercicios y guías, TOC, `.ripkg` y `catalogo.json`. |
+| `deckard export myst` | Sitio MyST del banco: páginas de ejercicios, temas y guías, TOC, `.ripkg` verificados y `catalogo.json`. |
+| `deckard export apunte` | Bloques «Ejercicios para practicar» en las páginas del apunte (con `--verificar`, para CI). |
+| `deckard lint` | Lint del banco: ejercicios, temario, guías y trazabilidad con el apunte. |
 | `deckard verify [id]` | Verificación con Ripley, barra de progreso en batch y `--log-fallos`. |
 | `deckard verify fuzz` | Endurecimiento masivo de tests con `dredd fuzz-gen`. |
 | `deckard verify test-harness` | Arnés de pruebas con inyección de fallas vía `ripley harness`. |
