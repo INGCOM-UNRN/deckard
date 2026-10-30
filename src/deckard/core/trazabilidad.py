@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -68,12 +68,35 @@ def archivos_del_toc(myst_yml: Path) -> List[str]:
     return archivos
 
 
+def titulo_de_pagina(archivo: Path) -> Optional[str]:
+    """El `title:` del frontmatter o el primer título `# …` de una página MyST."""
+    try:
+        texto = archivo.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.match(r"---\n(.*?)\n---\n", texto, re.DOTALL)
+    if m:
+        try:
+            datos = yaml.safe_load(m.group(1)) or {}
+        except yaml.YAMLError:
+            datos = {}
+        if isinstance(datos, dict) and datos.get("title"):
+            return str(datos["title"])
+    m = re.search(r"^#\s+(.+?)\s*$", texto, re.MULTILINE)
+    return m.group(1) if m else None
+
+
 @dataclass
 class SitioApunte:
-    """Dónde está publicado el apunte y qué slug tiene cada página (si se conoce su myst.yml)."""
+    """Dónde está publicado el apunte y el slug y el título de cada página (si se tiene su repositorio)."""
 
     url: str
     slugs: Dict[str, str]
+    titulos: Dict[str, str] = field(default_factory=dict)
+
+    def titulo_de(self, ruta: str) -> str:
+        pagina = ruta.partition("#")[0]
+        return self.titulos.get(pagina) or slug_myst(pagina).replace("-", " ").capitalize()
 
     def url_de(self, ruta: str) -> str:
         ruta_pag, _, ancla = ruta.partition("#")
@@ -83,7 +106,11 @@ class SitioApunte:
 
 def sitio_apunte(url: str, dir_apunte: Optional[Path] = None) -> SitioApunte:
     myst = dir_apunte / "myst.yml" if dir_apunte else None
-    return SitioApunte(url=url, slugs=slugs_de_toc(archivos_del_toc(myst)) if myst and myst.is_file() else {})
+    if dir_apunte is None or myst is None or not myst.is_file():
+        return SitioApunte(url=url, slugs={})
+    archivos = archivos_del_toc(myst)
+    titulos = {a: t for a in archivos if (t := titulo_de_pagina(dir_apunte / a))}
+    return SitioApunte(url=url, slugs=slugs_de_toc(archivos), titulos=titulos)
 
 
 def url_enunciados(base: str, pagina: str) -> str:

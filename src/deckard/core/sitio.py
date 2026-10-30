@@ -249,7 +249,9 @@ def pagina_tema(tema: str) -> str:
 
 def _enlaces_apunte(tema: str, temario: Temario, apunte: Optional[SitioApunte]) -> List[Tuple[str, str]]:
     """(texto, destino) de las páginas del apunte de un tema: URL publicada, o la ruta si no hay sitio."""
-    return [(Path(r.partition("#")[0]).stem, apunte.url_de(r) if apunte else r) for r in temario.apunte.get(tema, [])]
+    if apunte is None:
+        return [(Path(r.partition("#")[0]).stem, r) for r in temario.apunte.get(tema, [])]
+    return [(apunte.titulo_de(r), apunte.url_de(r)) for r in temario.apunte.get(tema, [])]
 
 
 def _bloque_teoria(tema: str, temario: Temario, apunte: Optional[SitioApunte], enlace_tema: Optional[str]) -> List[str]:

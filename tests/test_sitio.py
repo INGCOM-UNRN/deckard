@@ -308,7 +308,7 @@ def test_temas_y_ejercicios_enlazan_al_apunte(repo_apunte):
 
     tema = (sitio / "consignas" / "lazos" / "tema-lazos.md").read_text(encoding="utf-8")
     assert tema.startswith("# Lazos")
-    assert f"]({APUNTE}/control-flujo)" in tema
+    assert f"[Control]({APUNTE}/control-flujo)" in tema  # título de la página del apunte
     assert "[Aritmética](../aritmetica/tema-aritmetica.md)" in tema  # prerrequisito
     assert "[Contar](contar.md)" in tema
 
