@@ -83,6 +83,10 @@ ripley run guias/{{ guia.id or 'guia' }}.yaml
 > **Etiquetas:** {% for tag in ej.tags %}`{{ tag }}`{% if not loop.last %}, {% endif %}{% endfor %}
 {%- endif %}
 
+{% if item.rel_ripkg_path %}
+📦 [Paquete `{{ ej.id }}.ripkg`]({{ item.rel_ripkg_path }}) · `ripley run {{ ej.id }}.ripkg`
+{% endif %}
+
 {{ ej.enunciado_md }}
 
 {% if ej.funciones %}

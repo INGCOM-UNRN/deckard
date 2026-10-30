@@ -139,6 +139,7 @@ class Ejercicio(BaseModel):
     siguiente_recomendado: List[str] = Field(default_factory=list, description="Ids de ejercicios para seguir.")
     referencias_teoria: Optional[ReferenciasTeoria] = None
     visibilidad_solucion: Optional[VisibilidadSolucion] = Field(default=None, description="publica, desplegable (por omisión), protegida u oculta (la solución nunca se exporta).")
+    publicar: bool = Field(default=True, description="False deja el ejercicio en el banco pero fuera del sitio, los .ripkg y el catálogo (prototipos sin tests reales).")
     # Cabecera <id>.h del banco: la carga `bank.cargar_ejercicio`; no va al ejercicio.yaml.
     header_c: str = Field(default="", exclude=True)
     header_name: str = Field(default="", exclude=True)
@@ -314,6 +315,8 @@ class Ejercicio(BaseModel):
             datos.pop("acsl_contratos", None)
         if not self.archivos_prueba:
             datos.pop("archivos_prueba", None)
+        if self.publicar:
+            datos.pop("publicar", None)
         return datos
 
 

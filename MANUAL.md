@@ -206,6 +206,28 @@ deckard export templates list
 3. Plantilla global de usuario en `~/.config/deckard/templates/<nombre>`.
 4. Plantillas integradas built-in (`ejercicio.html`, `guia.html`, `ejercicio.md`, `guia.md`, `estilos.css`).
 
+### Sitio MyST del banco (`deckard export myst`)
+
+Genera desde el banco y las guías todo lo que publica el repositorio de enunciados; está pensado
+para correr en el CI, así que nada de lo que escribe se versiona:
+
+```bash
+deckard export myst                      # banco/ y guias/ → sitio/, y reescribe el toc de myst.yml
+deckard export myst --agrupar-unidades   # TOC por unidad en lugar de por tema
+```
+
+- `sitio/consignas/<tema>/<id>.md`: una página por ejercicio (plantilla `ejercicio.md`), con enlace a su paquete.
+- `sitio/guias/<guia>.md`: una página por guía compuesta (las specs de `compose` no se publican).
+- `sitio/index.md` y `sitio/grafo_tematico.md`: portada con métricas y grafo de prerrequisitos.
+- `sitio/paquetes/<id>.ripkg`: un paquete por ejercicio, **sin** las pruebas de `tests/hidden/`.
+- `sitio/paquetes/catalogo.json`: ejercicios (metadatos, página, paquete con su SHA-256) y guías, para herramientas.
+
+Los títulos, unidades, prerrequisitos y rutas de los temas salen de `temas.yaml`, junto al banco
+(`--temas` para otro). Un ejercicio con `publicar: false` queda en el banco pero fuera del sitio,
+de los paquetes y del catálogo. Los ejercicios inválidos se informan y el comando termina con
+error (salvo `--permitir-invalidos`). `sitio/` se borra en cada corrida, por eso no puede contener
+al banco ni a las guías.
+
 ---
 
 ## 6. Verificación Técnica, Fuzzing y Arnés (`deckard verify`)
@@ -334,6 +356,7 @@ deckard multiplex tp1_spec.yaml --padron 123456
 | `deckard spec <subcmd>` | Gestiona y valida especificaciones (`new`, `list`, `show`, `validate`, `edit`, `compose`). |
 | `deckard guide <subcmd>` | Gestiona guías compuestas (`list`, `show`, `compose`, `add`, `remove`, `verify`, `export`). |
 | `deckard export <obj>` | Exporta a PDF/MD/HTML (`--type=pdf,md`, `--pipeline-md`, `templates init/list`). |
+| `deckard export myst` | Sitio MyST del banco: páginas de ejercicios y guías, TOC, `.ripkg` y `catalogo.json`. |
 | `deckard verify [id]` | Verificación con Ripley, barra de progreso en batch y `--log-fallos`. |
 | `deckard verify fuzz` | Endurecimiento masivo de tests con `dredd fuzz-gen`. |
 | `deckard verify test-harness` | Arnés de pruebas con inyección de fallas vía `ripley harness`. |

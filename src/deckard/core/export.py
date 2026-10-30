@@ -35,8 +35,13 @@ def renderizar_ejercicio_md(
     incluir_pistas: bool = False,
     incluir_tests: bool = False,
     dir_banco: Optional[Path] = None,
+    rel_ripkg_path: Optional[str] = None,
 ) -> Tuple[str, Optional[Path]]:
-    """Renderiza un ejercicio a Markdown usando plantilla Jinja2."""
+    """Renderiza un ejercicio a Markdown usando plantilla Jinja2.
+
+    `rel_ripkg_path` es el enlace al paquete desde la página; sin él la plantilla usa
+    `../../paquetes/<id>.ripkg`.
+    """
     ejercicio = _publicable(ejercicio)
     template_str, base_path = buscar_plantilla(
         template_nombre_o_ruta, tipo="ejercicio", extension=".md", dir_banco=dir_banco
@@ -53,6 +58,7 @@ def renderizar_ejercicio_md(
         incluir_pistas=incluir_pistas,
         incluir_tests=incluir_tests,
         tests_casos=tests_casos,
+        rel_ripkg_path=rel_ripkg_path,
     )
     return md_salida, base_path
 
@@ -64,8 +70,12 @@ def renderizar_guia_md(
     incluir_soluciones: bool = False,
     incluir_pistas: bool = False,
     dir_banco: Optional[Path] = None,
+    rutas_ripkg: Optional[Dict[str, str]] = None,
 ) -> Tuple[str, Optional[Path]]:
-    """Renderiza una guía completa a Markdown usando plantilla Jinja2."""
+    """Renderiza una guía completa a Markdown usando plantilla Jinja2.
+
+    `rutas_ripkg` ({id: enlace}) agrega a cada ejercicio el enlace a su paquete .ripkg.
+    """
     ejercicios_con_dir = [(d, _publicable(e)) for d, e in ejercicios_con_dir]
     template_str, base_path = buscar_plantilla(
         template_nombre_o_ruta, tipo="guia", extension=".md", dir_banco=dir_banco
@@ -79,6 +89,7 @@ def renderizar_guia_md(
         items.append({
             "ejercicio": ej,
             "dir": dir_ej,
+            "rel_ripkg_path": (rutas_ripkg or {}).get(ej.id),
         })
         total_min += ej.minutos_estimados
 

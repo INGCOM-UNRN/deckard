@@ -564,6 +564,12 @@
       "default": null,
       "description": "publica, desplegable (por omisión), protegida u oculta (la solución nunca se exporta).",
       "title": "Visibilidad Solucion"
+    },
+    "publicar": {
+      "default": true,
+      "description": "False deja el ejercicio en el banco pero fuera del sitio, los .ripkg y el catálogo (prototipos sin tests reales).",
+      "title": "Publicar",
+      "type": "boolean"
     }
   },
   "required": [
