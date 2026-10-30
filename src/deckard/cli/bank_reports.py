@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 import shutil
-from typing import Optional
+from typing import Dict, Optional
 
 from rich.table import Table
 import typer
@@ -101,94 +101,106 @@ def cmd_stats(
     console.print("")
 
 
+def _starter_no_compila(starter_code: str) -> Optional[str]:
+    """El diagnóstico si el starter_code no compila (con daedalus si está, si no gcc); None si compila."""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".c", mode="w", encoding="utf-8", delete=False) as tmp:
+        tmp.write(starter_code)
+        tmp_p = Path(tmp.name)
+    try:
+        daedalus_bin, gcc_bin = shutil.which("daedalus"), shutil.which("gcc")
+        if daedalus_bin:
+            p = subprocess.run(
+                [daedalus_bin, "compile", str(tmp_p), "--flags", "-c -Wno-unused-parameter -Wno-unused-variable"],
+                capture_output=True, text=True, check=False,
+            )
+            return None if p.returncode == 0 else f"daedalus: {(p.stderr.strip() or p.stdout.strip())[:200]}"
+        if gcc_bin:
+            p = subprocess.run(
+                [gcc_bin, "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-unused-variable",
+                 "-c", str(tmp_p), "-o", "/dev/null"],
+                capture_output=True, text=True, check=False,
+            )
+            return None if p.returncode == 0 else f"gcc: {p.stderr.strip()[:200]}"
+        return None
+    finally:
+        tmp_p.unlink(missing_ok=True)
+
+
 @app.command("lint")
 @bank_app.command("lint")
 def cmd_lint(
-    patron: Optional[str] = typer.Argument(None, help="Patrón o ID de ejercicio específico a auditar."),
+    patron: Optional[str] = typer.Argument(None, help="Revisar sólo los ejercicios cuyo id contiene este texto."),
     banco: Path = typer.Option(Path("banco"), "--banco", help="Directorio raíz del banco."),
+    temas: Optional[Path] = typer.Option(None, "--temas", help="temas.yaml (por omisión <banco>/../temas.yaml, si existe)."),
+    guias: Optional[Path] = typer.Option(None, "--guias", help="Directorio de guías (por omisión <banco>/../guias, si existe)."),
+    apunte: Optional[Path] = typer.Option(None, "--apunte", help="Repositorio del apunte: revisa las páginas citadas y los bloques de export apunte."),
+    compilar: bool = typer.Option(False, "--compilar", help="Compilar también el starter_code de cada ejercicio."),
+    estricto: bool = typer.Option(False, "--estricto", help="Salir con 1 también si hay avisos."),
+    as_json: bool = typer.Option(False, "--json", help="Salida en JSON (hallazgos y conteo por regla)."),
+    maximo: int = typer.Option(200, "--max", min=0, help="Hallazgos a listar en la tabla (el conteo por regla es completo)."),
 ) -> None:
-    """Verifica que los metadatos y el starter_code de los ejercicios compilen limpiamente antes de exportar."""
-    import tempfile
+    """Revisa el banco antes de publicar: ejercicios, temario, guías y trazabilidad con el apunte.
 
-    ejs = buscar_ejercicios(banco, patron=patron, recursivo=True)
-    if not ejs:
-        console.print(f"[yellow]No se encontraron ejercicios para auditar en {banco}[/yellow]")
+    Reglas: ids únicos y coherentes con su carpeta, tema y `dep:<tema>` del temario, enunciado y
+    solución de lo publicable, guías que citan ejercicios existentes y publicados, páginas del
+    apunte citadas en temas.yaml que existen y están en su TOC, y bloques de `export apunte` al día.
+    Sale con 1 si hay errores (con --estricto, también si hay avisos).
+    """
+    import json
+
+    from deckard.core.lint_banco import ERROR, REGLAS, Hallazgo, revisar_banco
+    from deckard.core.sitio import SitioError
+
+    ruta_temas = temas if temas is not None else banco.parent / "temas.yaml"
+    ruta_guias = guias if guias is not None else banco.parent / "guias"
+    try:
+        res = revisar_banco(banco, temas=ruta_temas if ruta_temas.is_file() else None,
+                            dir_guias=ruta_guias if ruta_guias.is_dir() else None, dir_apunte=apunte, patron=patron)
+    except SitioError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if compilar:
+        for dir_ej, ej in buscar_ejercicios(banco, patron=patron, recursivo=True):
+            if (ej.starter_code or "").strip():
+                error = _starter_no_compila(ej.starter_code)
+                if error:
+                    res.hallazgos.append(Hallazgo(ERROR, "starter", dir_ej.relative_to(banco).as_posix(), error))
+
+    falla = bool(res.errores) or (estricto and bool(res.avisos))
+    if as_json:
+        print(json.dumps(res.a_dict(), ensure_ascii=False, indent=2))
+        if falla:
+            raise typer.Exit(code=1)
         return
 
-    tabla = Table(title=f"Deckard Linter — {len(ejs)} ejercicio(s)")
-    tabla.add_column("ID", style="cyan")
-    tabla.add_column("Esquema", justify="center")
-    tabla.add_column("Starter Code", justify="center")
-    tabla.add_column("Tests", justify="center")
-    tabla.add_column("Diagnóstico / Observaciones")
-
-    errores = 0
-    for dir_ej, ej in ejs:
-        issues = []
-        esquema_ok = True
-        if not ej.titulo:
-            issues.append("Falta título")
-            esquema_ok = False
-        if not ej.tema:
-            issues.append("Falta tema")
-            esquema_ok = False
-        if ej.minutos_estimados <= 0:
-            issues.append("Minutos inválidos")
-            esquema_ok = False
-
-        # Verificación de compilación de starter_code
-        starter_ok = True
-        starter_code = ej.starter_code or ""
-        if starter_code.strip():
-            with tempfile.NamedTemporaryFile(suffix=".c", mode="w", encoding="utf-8", delete=False) as tmp:
-                code = starter_code
-                tmp.write(code)
-                tmp_p = Path(tmp.name)
-
-            try:
-                gcc_bin = shutil.which("gcc")
-                daedalus_bin = shutil.which("daedalus")
-                if daedalus_bin:
-                    p = subprocess.run(
-                        [daedalus_bin, "compile", str(tmp_p), "--flags", "-c -Wno-unused-parameter -Wno-unused-variable"],
-                        capture_output=True,
-                        text=True,
-                    )
-                    starter_ok = (p.returncode == 0)
-                    if not starter_ok:
-                        issues.append(f"Starter code (daedalus): {p.stderr.strip()[:60] or p.stdout.strip()[:60]}")
-                elif gcc_bin:
-                    p = subprocess.run(
-                        [gcc_bin, "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-unused-variable", "-c", str(tmp_p), "-o", "/dev/null"],
-                        capture_output=True,
-                        text=True,
-                    )
-                    starter_ok = (p.returncode == 0)
-                    if not starter_ok:
-                        issues.append(f"Starter code (gcc): {p.stderr.strip()[:60]}")
-            finally:
-                if tmp_p.exists():
-                    tmp_p.unlink()
-
-        tests_dir = dir_ej / "tests"
-        has_tests = tests_dir.is_dir() and any(tests_dir.glob("*.in"))
-        tests_str = "[green]✓[/green]" if has_tests else "[dim]—[/dim]"
-
-        if not esquema_ok or not starter_ok:
-            errores += 1
-
-        esquema_str = "[green]OK[/green]" if esquema_ok else "[red]FALLÓ[/red]"
-        starter_str = "[green]OK[/green]" if starter_ok else "[red]FALLÓ[/red]"
-        diag_str = "; ".join(issues) if issues else "[green]Conforme[/green]"
-
-        tabla.add_row(ej.id, esquema_str, starter_str, tests_str, diag_str)
-
+    titulo = f"Deckard Linter — {res.ejercicios} ejercicio(s)"
+    if not res.hallazgos:
+        console.print(f"[bold green]✓ {titulo}: Conforme, sin hallazgos.[/bold green]")
+        return
+    tabla = Table(title=titulo)
+    tabla.add_column("Nivel")
+    tabla.add_column("Regla", style="cyan")
+    tabla.add_column("Dónde")
+    tabla.add_column("Detalle")
+    for h in sorted(res.hallazgos, key=lambda h: (h.nivel != ERROR, h.regla, h.donde))[:maximo]:
+        nivel = "[red]error[/red]" if h.nivel == ERROR else "[yellow]aviso[/yellow]"
+        tabla.add_row(nivel, h.regla, h.donde, h.mensaje)
     console.print(tabla)
-    if errores > 0:
-        console.print(f"\n[bold red]✖ Se detectaron problemas en {errores} ejercicio(s).[/bold red]\n")
+    if len(res.hallazgos) > maximo:
+        console.print(f"[dim]… y {len(res.hallazgos) - maximo} más (--max o --json para verlos todos).[/dim]")
+    console.print("\nPor regla:")
+    conteo: Dict[str, int] = {}
+    for h in res.hallazgos:
+        conteo[h.regla] = conteo.get(h.regla, 0) + 1
+    for regla, cantidad in sorted(conteo.items()):
+        console.print(f"  {regla:22s} {cantidad:5d}  {REGLAS.get(regla, '')}")
+    color = "red" if falla else "yellow"
+    console.print(f"\n[bold {color}]{len(res.errores)} error(es) y {len(res.avisos)} aviso(s).[/bold {color}]")
+    if falla:
         raise typer.Exit(code=1)
-    else:
-        console.print(f"\n[bold green]✓ Todos los ejercicios auditaron limpiamente sin errores.[/bold green]\n")
 
 
 @app.command("duplicate")
