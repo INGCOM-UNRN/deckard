@@ -693,6 +693,48 @@ def escribir_catalogo(
     return catalogo
 
 
+def verificar_paquetes(catalogo: Dict[str, Any], dir_paquetes: Path) -> List[Tuple[str, str]]:
+    """Revisa cada .ripkg del catálogo: existe, su hash coincide, es un ZIP con manifest.toml de esa
+    práctica, cada archivo del payload tiene el hash del manifiesto y no lleva pruebas ocultas."""
+    import tomllib
+    import zipfile
+
+    from deckard.core.pack import MANIFEST_NAME, PAYLOAD_PREFIX
+
+    problemas: List[Tuple[str, str]] = []
+    for entrada in catalogo.get("ejercicios", []):
+        eid, info = entrada["id"], entrada.get("ripkg")
+        if not info:
+            problemas.append((eid, "sin paquete"))
+            continue
+        ruta = dir_paquetes / info["archivo"]
+        if not ruta.is_file():
+            problemas.append((eid, f"no existe {ruta.name}"))
+            continue
+        if _sha256(ruta) != info["sha256"]:
+            problemas.append((eid, "el sha256 no coincide con el catálogo"))
+            continue
+        try:
+            with zipfile.ZipFile(ruta) as zf:
+                if zf.testzip() is not None:
+                    problemas.append((eid, "ZIP corrupto"))
+                    continue
+                manifiesto = tomllib.loads(zf.read(MANIFEST_NAME).decode("utf-8"))
+                hashes = (manifiesto.get("integrity") or {}).get("sha256") or {}
+                payload = {n[len(PAYLOAD_PREFIX):]: n for n in zf.namelist() if n.startswith(PAYLOAD_PREFIX)}
+                if (manifiesto.get("meta") or {}).get("practica") != eid:
+                    problemas.append((eid, "el manifiesto es de otra práctica"))
+                elif set(payload) != set(hashes):
+                    problemas.append((eid, "el payload no coincide con el manifiesto"))
+                elif any(hashlib.sha256(zf.read(n)).hexdigest() != hashes[k] for k, n in payload.items()):
+                    problemas.append((eid, "un archivo del payload no coincide con su hash"))
+                elif any(p in ("hidden", "ocultos") for k in payload for p in Path(k).parts):
+                    problemas.append((eid, "incluye pruebas ocultas en un sitio público"))
+        except (zipfile.BadZipFile, KeyError, tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
+            problemas.append((eid, f"paquete ilegible: {exc}"))
+    return problemas
+
+
 # ---------------------------------------------------------------------------
 # Orquestación
 # ---------------------------------------------------------------------------
@@ -707,6 +749,7 @@ class ResumenSitio:
     guias_vacias: List[GuiaSitio]  # ningún ejercicio publicado: no tienen página
     paquetes: int
     fallidos_pack: List[Tuple[str, str]]
+    paquetes_invalidos: List[Tuple[str, str]]
     catalogo: Optional[Path]
     myst_yml: Optional[Path]
 
@@ -763,10 +806,13 @@ def construir_sitio(
     hechos: Dict[str, Path] = {}
     fallidos: List[Tuple[str, str]] = []
     catalogo: Optional[Path] = None
+    invalidos_pack: List[Tuple[str, str]] = []
     if paquetes:
         hechos, fallidos = empaquetar_publicables(ejercicios, salida)
         catalogo = salida / DIR_PAQUETES / ARCHIVO_CATALOGO
-        escribir_catalogo(catalogo, ejercicios, guias, hechos, banco, temario, apunte)
+        datos_catalogo = escribir_catalogo(catalogo, ejercicios, guias, hechos, banco, temario, apunte)
+        invalidos_pack = [p for p in verificar_paquetes(datos_catalogo, catalogo.parent)
+                          if p[0] not in {eid for eid, _ in fallidos}]
 
     if myst_yml is not None:
         prefijo = Path(os.path.relpath(salida.resolve(), myst_yml.resolve().parent)).as_posix()
@@ -781,6 +827,7 @@ def construir_sitio(
         guias_vacias=[g for g in todas if not g.ejercicios],
         paquetes=len(hechos),
         fallidos_pack=fallidos,
+        paquetes_invalidos=invalidos_pack,
         catalogo=catalogo,
         myst_yml=myst_yml,
     )

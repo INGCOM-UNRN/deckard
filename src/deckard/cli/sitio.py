@@ -64,10 +64,15 @@ def exportar_myst(
 
     for eid, error in res.fallidos_pack:
         console.print(f"[red]  ✗ paquete {eid}: {error}[/red]")
+    for eid, error in res.paquetes_invalidos:
+        console.print(f"[red]  ✗ paquete {eid} no pasó la verificación: {error}[/red]")
     for dir_ej, error in res.invalidos:
         console.print(f"[red]  ✗ {dir_ej}: {error}[/red]")
-    if res.fallidos_pack or (res.invalidos and not permitir_invalidos):
-        console.print(f"[red]{len(res.invalidos)} ejercicios inválidos y {len(res.fallidos_pack)} paquetes fallidos.[/red]")
+    if res.catalogo and not res.paquetes_invalidos:
+        console.print(f"  [green]✓ {res.paquetes} paquetes verificados (hash, manifiesto y sin pruebas ocultas).[/green]")
+    if res.fallidos_pack or res.paquetes_invalidos or (res.invalidos and not permitir_invalidos):
+        console.print(f"[red]{len(res.invalidos)} ejercicios inválidos, {len(res.fallidos_pack)} paquetes fallidos y "
+                      f"{len(res.paquetes_invalidos)} paquetes que no pasaron la verificación.[/red]")
         raise typer.Exit(code=1)
 
 

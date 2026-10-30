@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 from deckard.cli import app
 from deckard.core.bank import guardar_ejercicio
 from deckard.core.models import Ejercicio, NivelBloom
-from deckard.core.sitio import SitioError, cargar_temario, construir_sitio, slug_guia
+from deckard.core.sitio import SitioError, cargar_temario, construir_sitio, slug_guia, verificar_paquetes
 from deckard.core.trazabilidad import MARCA_FIN, MARCA_INICIO, slug_myst, slugs_de_toc
 
 runner = CliRunner()
@@ -329,6 +329,21 @@ def test_catalogo_con_temas_y_urls(repo_apunte):
     assert lazos["url"] == f"{ENUNCIADOS}/tema-lazos"
     assert lazos["apunte"] == [{"ruta": "apunte/bloque_1/3_control_flujo.md", "url": f"{APUNTE}/control-flujo"}]
     assert lazos["ejercicios"] == ["contar"]
+
+
+def test_paquetes_verificados(repo):
+    res = _construir(repo)
+    assert res.paquetes == 2 and res.paquetes_invalidos == []
+
+    catalogo = json.loads(res.catalogo.read_text(encoding="utf-8"))
+    paquete = res.catalogo.parent / "contar.ripkg"
+    with zipfile.ZipFile(paquete, "a") as zf:  # alguien le agrega una prueba oculta
+        zf.writestr("payload/hidden/secreto.in", "99\n")
+    problemas = dict(verificar_paquetes(catalogo, res.catalogo.parent))
+    assert "sha256" in problemas["contar"]
+    catalogo["ejercicios"][0 if catalogo["ejercicios"][0]["id"] == "contar" else 1]["ripkg"]["sha256"] = (
+        __import__("hashlib").sha256(paquete.read_bytes()).hexdigest())
+    assert "manifiesto" in dict(verificar_paquetes(catalogo, res.catalogo.parent))["contar"]
 
 
 def test_export_apunte_escribe_y_verifica_bloques(repo_apunte):
