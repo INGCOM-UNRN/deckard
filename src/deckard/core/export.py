@@ -17,6 +17,8 @@ from deckard.core.export_plantillas import (  # noqa: F401
     buscar_plantilla,
     cargar_css_estilos,
     cargar_tests_ejercicio,
+    desplegar_contratos,
+    entorno_jinja_md,
     inicializar_plantillas,
     markdown_a_html,
 )
@@ -46,7 +48,7 @@ def renderizar_ejercicio_md(
     template_str, base_path = buscar_plantilla(
         template_nombre_o_ruta, tipo="ejercicio", extension=".md", dir_banco=dir_banco
     )
-    env = jinja2.Environment(autoescape=False)
+    env = entorno_jinja_md()
     template = env.from_string(template_str)
 
     tests_casos = cargar_tests_ejercicio(dir_ejercicio) if incluir_tests else []
@@ -80,7 +82,7 @@ def renderizar_guia_md(
     template_str, base_path = buscar_plantilla(
         template_nombre_o_ruta, tipo="guia", extension=".md", dir_banco=dir_banco
     )
-    env = jinja2.Environment(autoescape=False)
+    env = entorno_jinja_md()
     template = env.from_string(template_str)
 
     items = []

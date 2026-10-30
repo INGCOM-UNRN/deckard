@@ -17,6 +17,7 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Cambiado
 
+- **plantillas MyST**: la página de ejercicio es una guía escalonada: tras la consigna van las «Pistas» (antes «Pistas progresivas», al final) y después, en desplegables, la especificación de las funciones, los prototipos de la cabecera y el contrato del enunciado (filtro `desplegar_contratos`); lo mismo en la guía.
 - **ejercicio**: `rubrica` es una lista de `{criterio, peso}` (la forma de las plantillas); el mapa `{criterio: peso}` se sigue aceptando al leer. `pesos_rubrica` da el mapa para la calibración y la calificación.
 
 - **guide practica**: crea la práctica desde la guía compuesta sobre plantilla-TP (con su `tp.sh`), con las librerías declaradas en la guía (de la cátedra, a crear o reutilizadas de una guía anterior) y, del lado del docente, `dredd.mk`, las pruebas ocultas y `targets.json` para dredd; si la práctica ya existe, muestra las diferencias (Ola 30).
@@ -24,6 +25,7 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Corregido
 
+- **plantillas MyST**: la tabla de especificación de funciones (y las de rúbrica y casos) salía cortada por líneas en blanco entre filas; la solución anidaba ``` dentro de ``` y el desplegable se cerraba antes de tiempo.
 - **init_tests**: la suite generada para p1_test no compilaba: usaba `INIT_TESTS` y `ASSERT_EQ`, que p1_test no tiene, `ASSERT_TRUE` con dos argumentos y `assert()` de los bloques de código del banco (N-DECKARD-07).
 
 ## [0.2.0] - 2026-09-28

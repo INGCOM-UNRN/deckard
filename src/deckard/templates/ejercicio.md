@@ -147,38 +147,10 @@ flowchart LR
 
 ## 📖 Consigna
 
-{{ ejercicio.enunciado_md }}
-
-{% if ejercicio.header_c %}
-## 📋 Prototipos y Cabecera (`{{ ejercicio.header_name or (ejercicio.id ~ '.h') }}`)
-
-```{code-block} c
-{{ ejercicio.header_c }}
-```
-{% endif %}
-
-{% if ejercicio.funciones %}
-## ⚙️ Especificación de Funciones
-
-| Función | Retorno | Parámetros | Descripción |
-| :--- | :--- | :--- | :--- |
-{% for f in ejercicio.funciones %}
-| `{{ f.nombre }}` | `{{ f.retorno or 'void' }}` | `{{ f.parametros or 'void' }}` | {{ f.descripcion or '-' }} |
-{% endfor %}
-{% endif %}
-
-{% if ejercicio.rubrica %}
-## 🎯 Rúbrica de Evaluación
-
-| Criterio de Evaluación | Ponderación |
-| :--- | :---: |
-{% for item in ejercicio.rubrica %}
-| {{ item.criterio }} | **{{ item.peso }}%** |
-{% endfor %}
-{% endif %}
+{{ ejercicio.enunciado_md | desplegar_contratos }}
 
 {% if (incluir_pistas is not defined or incluir_pistas) and ejercicio.pistas %}
-## 💡 Pistas Progresivas
+## 💡 Pistas
 
 ````{tab-set}
 {% for pista in ejercicio.pistas %}
@@ -189,18 +161,53 @@ flowchart LR
 ````
 {% endif %}
 
+{% if ejercicio.funciones %}
+## ⚙️ Especificación de Funciones
+
+::::{dropdown} Ver la especificación de las funciones
+
+| Función | Retorno | Parámetros | Descripción |
+| :--- | :--- | :--- | :--- |
+{% for f in ejercicio.funciones -%}
+| `{{ f.nombre }}` | `{{ f.retorno or 'void' }}` | `{{ f.parametros or 'void' }}` | {{ f.descripcion or '-' }} |
+{% endfor %}
+::::
+{% endif %}
+
+{% if ejercicio.header_c %}
+## 📋 Prototipos y Cabecera (`{{ ejercicio.header_name or (ejercicio.id ~ '.h') }}`)
+
+::::{dropdown} Ver los prototipos
+
+```c
+{{ ejercicio.header_c }}
+```
+::::
+{% endif %}
+
+{% if ejercicio.rubrica %}
+## 🎯 Rúbrica de Evaluación
+
+| Criterio de Evaluación | Ponderación |
+| :--- | :---: |
+{% for item in ejercicio.rubrica -%}
+| {{ item.criterio }} | **{{ item.peso }}%** |
+{% endfor %}
+{% endif %}
+
+
 {% if (incluir_tests is not defined or incluir_tests) and (tests_casos or ejercicio.tests_funciones) %}
 ## 🧪 Casos de Prueba
 {% if tests_casos %}
 | Caso | Entrada (`.in`) | Salida Esperada (`.out`) |
 | :--- | :--- | :--- |
-{% for caso in tests_casos %}
+{% for caso in tests_casos -%}
 | **{{ caso.nombre }}** | `{{ caso.entrada | replace('\n', ' ') | trim }}` | `{{ caso.salida | replace('\n', ' ') | trim }}` |
 {% endfor %}
 {% elif ejercicio.tests_funciones %}
 | Prueba Unitaria | Función Objetivo | Verificación |
 | :--- | :--- | :--- |
-{% for t in ejercicio.tests_funciones %}
+{% for t in ejercicio.tests_funciones -%}
 | **{{ t.nombre }}** | `{{ t.funcion }}` | `{{ (t.codigo or (t.funcion ~ '(' ~ (t.args or '') ~ ')' ~ (' == ' ~ t.retorno_esperado if t.retorno_esperado else ''))) | replace('\n', ' ') | trim }}` |
 {% endfor %}
 {% endif %}
@@ -210,11 +217,10 @@ flowchart LR
 {% if (incluir_solucion is not defined or incluir_solucion) and ejercicio.solucion_c and visibilidad != 'oculta' %}
 ## ✓ Solución Modelo de Cátedra
 
-```{dropdown} 🔍 Revelar solución canónica en C
-:open: false
+::::{dropdown} 🔍 Revelar solución canónica en C
 
-```{code-block} c
+```c
 {{ ejercicio.solucion_c }}
 ```
-```
+::::
 {% endif %}

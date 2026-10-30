@@ -179,7 +179,7 @@ def test_export_markdown_ejercicio(banco_con_tests, tmp_path):
     assert out_md.is_file()
     contenido = out_md.read_text(encoding="utf-8")
     assert "# Invertir Vector" in contenido
-    assert "## 💡 Pistas Progresivas" in contenido
+    assert "## 💡 Pistas" in contenido
     assert "## ✓ Solución Modelo" in contenido
     assert "## 🧪 Casos de Prueba" in contenido
 

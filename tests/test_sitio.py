@@ -231,3 +231,34 @@ def test_cli_export_myst(repo, monkeypatch):
     (roto / "ejercicio.yaml").write_text("id: roto\n", encoding="utf-8")
     assert runner.invoke(app, ["export", "myst"]).exit_code == 1
     assert runner.invoke(app, ["export", "myst", "--permitir-invalidos"]).exit_code == 0
+
+
+def test_contrato_desplegable_y_no_se_envuelve_dos_veces():
+    from deckard.core.export_plantillas import desplegar_contratos
+
+    md = "Consigna.\n\n### 📋 Contrato de las Funciones\n\n```c\nint f(void);\n```\n\n### 🧪 Ejemplos\n\nx\n"
+    salida = desplegar_contratos(md)
+    assert "### 📋 Contrato de las Funciones\n\n::::{dropdown} Ver el contrato de las funciones\n```c\nint f(void);\n```\n::::" in salida
+    assert salida.endswith("### 🧪 Ejemplos\n\nx\n")
+    assert desplegar_contratos(salida) == salida
+    assert desplegar_contratos("Sin contrato.") == "Sin contrato."
+
+
+def test_pagina_escalonada_pistas_antes_de_prototipos_desplegables(repo):
+    from deckard.core.models import FuncionSpec
+
+    dir_ej = repo / "banco" / "lazos" / "contar"
+    datos = yaml.safe_load((dir_ej / "ejercicio.yaml").read_text(encoding="utf-8"))
+    datos["funciones"] = [FuncionSpec.parse("int contar(int n)").model_dump(), FuncionSpec.parse("void listar(int n)").model_dump()]
+    (dir_ej / "ejercicio.yaml").write_text(yaml.safe_dump(datos, allow_unicode=True), encoding="utf-8")
+    (dir_ej / "contar.h").write_text("int contar(int n);\nvoid listar(int n);\n", encoding="utf-8")
+    _construir(repo)
+    pagina = (repo / "sitio" / "consignas" / "lazos" / "contar.md").read_text(encoding="utf-8")
+
+    assert "Pistas Progresivas" not in pagina
+    assert pagina.index("## 💡 Pistas") < pagina.index("## ⚙️ Especificación") < pagina.index("## 📋 Prototipos")
+    assert "::::{dropdown} Ver la especificación de las funciones" in pagina
+    assert "::::{dropdown} Ver los prototipos\n\n```c\nint contar(int n);" in pagina
+    # filas de la tabla seguidas, sin líneas en blanco que la corten
+    assert "| :--- | :--- | :--- | :--- |\n| `contar` | `int` | `int n` |" in pagina
+    assert "|\n| `listar`" in pagina

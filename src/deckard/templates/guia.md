@@ -87,28 +87,10 @@ ripley run guias/{{ guia.id or 'guia' }}.yaml
 📦 [Paquete `{{ ej.id }}.ripkg`]({{ item.rel_ripkg_path }}) · `ripley run {{ ej.id }}.ripkg`
 {% endif %}
 
-{{ ej.enunciado_md }}
-
-{% if ej.funciones %}
-#### Prototipos de Funciones Requeridas
-| Función | Retorno | Parámetros | Descripción |
-| :--- | :--- | :--- | :--- |
-{% for f in ej.funciones %}
-| `{{ f.nombre }}` | `{{ f.retorno or 'void' }}` | `{{ f.parametros or 'void' }}` | {{ f.descripcion or '-' }} |
-{% endfor %}
-{% endif %}
-
-{% if (incluir_rubricas is not defined or incluir_rubricas) and ej.rubrica %}
-#### Criterios de Evaluación
-| Criterio | Ponderación |
-| :--- | :---: |
-{% for rub in ej.rubrica %}
-| {{ rub.criterio }} | {{ rub.peso }}% |
-{% endfor %}
-{% endif %}
+{{ ej.enunciado_md | desplegar_contratos }}
 
 {% if (incluir_pistas is not defined or incluir_pistas) and ej.pistas %}
-#### 💡 Pistas Didácticas
+#### 💡 Pistas
 ````{tab-set}
 {% for pista in ej.pistas %}
 ```{tab-item} Pista {{ loop.index }}
@@ -117,6 +99,29 @@ ripley run guias/{{ guia.id or 'guia' }}.yaml
 {% endfor %}
 ````
 {% endif %}
+
+{% if ej.funciones %}
+#### Prototipos de Funciones Requeridas
+::::{dropdown} Ver los prototipos
+
+| Función | Retorno | Parámetros | Descripción |
+| :--- | :--- | :--- | :--- |
+{% for f in ej.funciones -%}
+| `{{ f.nombre }}` | `{{ f.retorno or 'void' }}` | `{{ f.parametros or 'void' }}` | {{ f.descripcion or '-' }} |
+{% endfor %}
+::::
+{% endif %}
+
+{% if (incluir_rubricas is not defined or incluir_rubricas) and ej.rubrica %}
+#### Criterios de Evaluación
+| Criterio | Ponderación |
+| :--- | :---: |
+{% for rub in ej.rubrica -%}
+| {{ rub.criterio }} | {{ rub.peso }}% |
+{% endfor %}
+{% endif %}
+
+
 
 ---
 {% endfor %}
@@ -129,13 +134,12 @@ ripley run guias/{{ guia.id or 'guia' }}.yaml
 {% if ej.solucion_c and ej.visibilidad_solucion != 'oculta' %}
 ### {{ loop.index }}. {{ ej.titulo }} (`{{ ej.id }}`)
 
-```{dropdown} 🔍 Revelar solución de cátedra
-:open: false
+::::{dropdown} 🔍 Revelar solución de cátedra
 
-```{code-block} c
+```c
 {{ ej.solucion_c }}
 ```
-```
+::::
 {% endif %}
 {% endfor %}
 {% endif %}

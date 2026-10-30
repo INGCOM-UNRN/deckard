@@ -3,13 +3,40 @@
 from __future__ import annotations
 
 from enum import Enum
+import re
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import jinja2
 import markdown
 
 DIR_BUILTIN_TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
+
+
+# Sección «Contrato» de un enunciado (`### 📋 Contrato de las Funciones`) hasta el próximo título.
+_SECCION_CONTRATO = re.compile(r"^(#{2,4}[^\n]*Contrato[^\n]*)\n(.*?)(?=^#{1,4} |\Z)", re.MULTILINE | re.DOTALL)
+
+
+def desplegar_contratos(enunciado_md: str) -> str:
+    """Filtro de las plantillas MyST: el contrato de las funciones queda dentro de un desplegable.
+
+    Así la página es una guía escalonada: el estudiante lee la consigna y las pistas y abre el
+    contrato sólo cuando lo necesita. Una sección que ya es desplegable no se toca.
+    """
+    def envolver(m: re.Match) -> str:
+        cuerpo = m.group(2).strip("\n")
+        if not cuerpo or "{dropdown}" in cuerpo:
+            return m.group(0)
+        return f"{m.group(1)}\n\n::::{{dropdown}} Ver el contrato de las funciones\n{cuerpo}\n::::\n\n"
+    return _SECCION_CONTRATO.sub(envolver, enunciado_md or "")
+
+
+def entorno_jinja_md() -> jinja2.Environment:
+    """Entorno Jinja2 de las plantillas Markdown/MyST, con sus filtros."""
+    env = jinja2.Environment(autoescape=False)
+    env.filters["desplegar_contratos"] = desplegar_contratos
+    return env
 
 
 class FormatoExport(str, Enum):
