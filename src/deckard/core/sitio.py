@@ -467,13 +467,34 @@ def construir_toc(
     return toc
 
 
+MARCA_INICIO = "deckard export myst: inicio"
+MARCA_FIN = "deckard export myst: fin"
+_MARCAS = re.compile(
+    rf"^(?P<sangria>[ \t]*)#[^\n]*{re.escape(MARCA_INICIO)}[^\n]*\n"
+    rf"(?P<generado>.*?)"
+    rf"^[ \t]*#[^\n]*{re.escape(MARCA_FIN)}[^\n]*$",
+    re.MULTILINE | re.DOTALL,
+)
+
+
 def actualizar_toc_myst(myst_yml: Path, toc: List[Dict[str, Any]]) -> None:
-    """Reescribe `project.toc` de myst.yml (los comentarios se pierden: es un archivo del CI)."""
-    config = yaml.safe_load(myst_yml.read_text(encoding="utf-8")) or {}
-    if not isinstance(config.get("project"), dict):
-        config["project"] = {}
-    config["project"]["toc"] = toc
-    myst_yml.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False, width=1000), encoding="utf-8")
+    """Escribe el `toc` generado entre las marcas `# deckard export myst: inicio` y `…: fin` de myst.yml.
+
+    Las marcas van dentro de `project:`; lo que haya entre ellas se reemplaza en cada corrida y
+    el resto del archivo (comentarios incluidos) queda como está.
+    """
+    texto = myst_yml.read_text(encoding="utf-8")
+    coincidencias = list(_MARCAS.finditer(texto))
+    if len(coincidencias) != 1:
+        raise SitioError(
+            f"{myst_yml}: tiene que tener una sola vez, dentro de `project:`, el par de comentarios "
+            f"`# {MARCA_INICIO}` y `# {MARCA_FIN}`; deckard escribe el TOC entre ellos."
+        )
+    m = coincidencias[0]
+    sangria = m.group("sangria")
+    bloque = yaml.safe_dump({"toc": toc}, allow_unicode=True, sort_keys=False, width=1000)
+    generado = "".join(f"{sangria}{linea}\n" for linea in bloque.splitlines())
+    myst_yml.write_text(texto[:m.start("generado")] + generado + texto[m.end("generado"):], encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

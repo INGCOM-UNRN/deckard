@@ -60,7 +60,10 @@ def repo(tmp_path) -> Path:
         "unidades": [{"id": "unidad_1", "titulo": "Unidad 1", "temas": ["sintaxis", "aritmetica", "lazos"]}],
     }, allow_unicode=True), encoding="utf-8")
     (tmp_path / "myst.yml").write_text(
-        "version: 1\nproject:\n  title: Banco\n  toc:\n  - file: viejo.md\nsite:\n  template: book-theme\n",
+        "version: 1\nproject:\n  title: Banco\n"
+        "  # deckard export myst: inicio (lo de abajo es generado)\n"
+        "  # deckard export myst: fin\n"
+        "site:\n  template: book-theme  # tema del sitio\n",
         encoding="utf-8")
     return tmp_path
 
@@ -155,6 +158,21 @@ def test_toc_de_myst_por_tema_y_por_unidad(repo):
     assert [s["title"] for s in toc[3]["children"]] == ["Aritmética", "Lazos"]
 
 
+def test_toc_entre_las_marcas_conserva_el_resto(repo):
+    _construir(repo)
+    _construir(repo)  # idempotente: reemplaza lo generado, no lo duplica
+    texto = (repo / "myst.yml").read_text(encoding="utf-8")
+    assert texto.count("toc:") == 1
+    assert "  # deckard export myst: inicio (lo de abajo es generado)\n  toc:\n  - file: sitio/index.md\n" in texto
+    assert texto.endswith("  # deckard export myst: fin\nsite:\n  template: book-theme  # tema del sitio\n")
+
+
+def test_myst_yml_sin_marcas_se_rechaza(repo):
+    (repo / "myst.yml").write_text("version: 1\nproject:\n  title: Banco\n", encoding="utf-8")
+    with pytest.raises(SitioError, match="deckard export myst: inicio"):
+        _construir(repo)
+
+
 def test_regenera_desde_cero(repo):
     (repo / "sitio" / "consignas" / "borrado").mkdir(parents=True)
     _construir(repo)
@@ -182,6 +200,11 @@ def test_temario_con_requisito_desconocido(tmp_path):
     with pytest.raises(SitioError, match="fantasma"):
         cargar_temario(ruta)
     assert cargar_temario(tmp_path / "no-existe.yaml").titulo("memoria_dinamica") == "Memoria dinamica"
+
+
+def test_tipo_laboratorio_es_valido(tmp_path):
+    dir_ej = _ejercicio(tmp_path, "lab", "testing", NivelBloom.APLICAR, tipo="laboratorio")
+    assert "tipo: laboratorio" in (dir_ej / "ejercicio.yaml").read_text(encoding="utf-8")
 
 
 def test_slug_guia():

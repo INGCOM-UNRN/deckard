@@ -222,6 +222,15 @@ deckard export myst --agrupar-unidades   # TOC por unidad en lugar de por tema
 - `sitio/paquetes/<id>.ripkg`: un paquete por ejercicio, **sin** las pruebas de `tests/hidden/`.
 - `sitio/paquetes/catalogo.json`: ejercicios (metadatos, página, paquete con su SHA-256) y guías, para herramientas.
 
+El TOC se escribe entre dos comentarios de `myst.yml`, dentro de `project:`; lo demás del
+archivo no se toca y lo que haya entre las marcas se reemplaza en cada corrida:
+
+```yaml
+project:
+  # deckard export myst: inicio
+  # deckard export myst: fin
+```
+
 Los títulos, unidades, prerrequisitos y rutas de los temas salen de `temas.yaml`, junto al banco
 (`--temas` para otro). Un ejercicio con `publicar: false` queda en el banco pero fuera del sitio,
 de los paquetes y del catálogo. Los ejercicios inválidos se informan y el comando termina con

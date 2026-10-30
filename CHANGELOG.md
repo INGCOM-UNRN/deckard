@@ -8,7 +8,8 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Agregado
 
-- **export myst**: el sitio MyST del repositorio de enunciados (antes `gestionar_consignas.py` de ese repositorio): páginas de ejercicios y guías, portada, grafo temático desde `temas.yaml`, `project.toc` de `myst.yml`, un `.ripkg` por ejercicio sin pruebas ocultas y `paquetes/catalogo.json` con ejercicios y guías. Pensado para el CI.
+- **export myst**: el sitio MyST del repositorio de enunciados (antes `gestionar_consignas.py` de ese repositorio): páginas de ejercicios y guías, portada, grafo temático desde `temas.yaml`, el `toc` de `myst.yml` (entre los comentarios `# deckard export myst: inicio` y `…: fin`, sin tocar el resto), un `.ripkg` por ejercicio sin pruebas ocultas y `paquetes/catalogo.json` con ejercicios y guías. Pensado para el CI.
+- **ejercicio**: `tipo: laboratorio`, además de concepto, práctica guiada, desafío y parcial previo.
 - **ejercicio**: `publicar: false` deja el ejercicio en el banco pero fuera del sitio, los paquetes y el catálogo. Esquema JSON regenerado.
 - **exercise cubrir**: casos de ejercicios de funciones con un driver generado desde los prototipos, especificaciones de tyrell por función para revisar y la solución de la cátedra (con UBSan en modo trap) como referencia; en `tests/funciones/` (Ola 32).
 - **ejercicio**: campos de las plantillas del repositorio de enunciados: `unidad`, `modulo`, `subtema`, `dificultad`, `esfuerzo_lineas_codigo`, `tipo`, `obligatorio`, `prerrequisitos`, `correquisitos`, `siguiente_recomendado`, `referencias_teoria` y `visibilidad_solucion` (con `oculta`, la solución no se exporta nunca); la cabecera `<id>.h` se carga para las plantillas. El itinerario entra en el grafo de dependencias y `verify audit` avisa de referencias rotas. Esquema JSON regenerado.
