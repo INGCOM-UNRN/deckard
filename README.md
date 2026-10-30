@@ -237,7 +237,7 @@ modulo: Estructuras enlazadas
 subtema: arboles_binarios
 dificultad: intermedia            # inicial | intermedia | avanzada | desafio
 esfuerzo_lineas_codigo: 80
-tipo: practica_guiada             # concepto | practica_guiada | desafio | parcial_previo
+tipo: practica_guiada             # concepto | practica_guiada | laboratorio | desafio | parcial_previo
 obligatorio: true
 prerrequisitos: [punteros, lista-enlazada]   # temas o ids de ejercicios
 correquisitos: [recursividad]

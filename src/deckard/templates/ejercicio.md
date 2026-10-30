@@ -24,7 +24,7 @@ Variables de Contexto esperadas (Jinja2):
         * prerrequisitos: list[str] (opcional, IDs de ejercicios previos necesarios).
         * correquisitos: list[str] (opcional, temas o IDs paralelos).
         * siguiente_recomendado: list[str] (opcional, IDs de ejercicios de continuidad).
-        * tipo: str (opcional: concepto | practica_guiada | desafio | parcial_previo).
+        * tipo: str (opcional: concepto | practica_guiada | laboratorio | desafio | parcial_previo).
         * obligatorio: bool (opcional, relevancia dentro de la cursada).
         * referencias_teoria: dict (opcional, {apunte, seccion, bibliografia}).
         * visibilidad_solucion: str (opcional: publica | desplegable | protegida | oculta).

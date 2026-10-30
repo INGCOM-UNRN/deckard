@@ -486,6 +486,7 @@
           "enum": [
             "concepto",
             "practica_guiada",
+            "laboratorio",
             "desafio",
             "parcial_previo"
           ],
@@ -496,7 +497,7 @@
         }
       ],
       "default": null,
-      "description": "Rol didáctico: concepto, practica_guiada, desafio o parcial_previo.",
+      "description": "Rol didáctico: concepto, practica_guiada, laboratorio, desafio o parcial_previo.",
       "title": "Tipo"
     },
     "obligatorio": {

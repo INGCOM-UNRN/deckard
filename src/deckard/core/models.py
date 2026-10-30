@@ -80,7 +80,7 @@ class CriterioRubrica(BaseModel):
 
 
 Dificultad = Literal["inicial", "intermedia", "avanzada", "desafio"]
-TipoEjercicio = Literal["concepto", "practica_guiada", "desafio", "parcial_previo"]
+TipoEjercicio = Literal["concepto", "practica_guiada", "laboratorio", "desafio", "parcial_previo"]
 VisibilidadSolucion = Literal["publica", "desplegable", "protegida", "oculta"]
 
 
@@ -132,7 +132,7 @@ class Ejercicio(BaseModel):
     subtema: Optional[str] = Field(default=None, description="Foco específico dentro del tema.")
     dificultad: Optional[Dificultad] = None
     esfuerzo_lineas_codigo: Optional[int] = Field(default=None, ge=1, description="Líneas de código estimadas de la solución.")
-    tipo: Optional[TipoEjercicio] = Field(default=None, description="Rol didáctico: concepto, practica_guiada, desafio o parcial_previo.")
+    tipo: Optional[TipoEjercicio] = Field(default=None, description="Rol didáctico: concepto, practica_guiada, laboratorio, desafio o parcial_previo.")
     obligatorio: Optional[bool] = None
     prerrequisitos: List[str] = Field(default_factory=list, description="Temas (del grafo temático) o ids de ejercicios que hay que saber antes.")
     correquisitos: List[str] = Field(default_factory=list, description="Temas o ids que se trabajan en paralelo.")
