@@ -12,6 +12,7 @@ from deckard.cli import app
 from deckard.core.bank import guardar_ejercicio
 from deckard.core.models import Ejercicio, NivelBloom
 from deckard.core.sitio import SitioError, cargar_temario, construir_sitio, slug_guia
+from deckard.core.trazabilidad import MARCA_FIN, MARCA_INICIO, slug_myst, slugs_de_toc
 
 runner = CliRunner()
 
@@ -150,7 +151,8 @@ def test_toc_de_myst_por_tema_y_por_unidad(repo):
     assert config["site"]["template"] == "book-theme"
     assert toc[0] == {"file": "sitio/index.md"}
     assert toc[2] == {"title": "Guías", "children": [{"file": "sitio/guias/guia-1-lazos.md"}]}
-    assert {"title": "Lazos", "children": [{"file": "sitio/consignas/lazos/contar.md"}]} in toc
+    assert {"title": "Lazos", "file": "sitio/consignas/lazos/tema-lazos.md",
+            "children": [{"file": "sitio/consignas/lazos/contar.md"}]} in toc
 
     _construir(repo, agrupar_por_unidad=True)
     toc = yaml.safe_load((repo / "myst.yml").read_text(encoding="utf-8"))["project"]["toc"]
@@ -262,3 +264,103 @@ def test_pagina_escalonada_pistas_antes_de_prototipos_desplegables(repo):
     # filas de la tabla seguidas, sin líneas en blanco que la corten
     assert "| :--- | :--- | :--- | :--- |\n| `contar` | `int` | `int n` |" in pagina
     assert "|\n| `listar`" in pagina
+
+
+# ---------------------------------------------------------------------------
+# Trazabilidad con el apunte (Ola 34)
+# ---------------------------------------------------------------------------
+
+APUNTE = "https://apunte.example"
+ENUNCIADOS = "https://apunte.example/enunciados"
+
+
+@pytest.fixture()
+def repo_apunte(repo) -> Path:
+    """El repo de enunciados con `apunte` por tema y `sitios`, más un apunte con dos páginas."""
+    temas = yaml.safe_load((repo / "temas.yaml").read_text(encoding="utf-8"))
+    temas["temas"]["lazos"]["apunte"] = ["apunte/bloque_1/3_control_flujo.md"]
+    temas["temas"]["aritmetica"]["apunte"] = "apunte/bloque_1/1_base.md#operadores"
+    temas["sitios"] = {"apunte": APUNTE, "enunciados": ENUNCIADOS}
+    (repo / "temas.yaml").write_text(yaml.safe_dump(temas, allow_unicode=True), encoding="utf-8")
+
+    apunte = repo / "apunte_repo"
+    (apunte / "apunte" / "bloque_1").mkdir(parents=True)
+    (apunte / "apunte" / "bloque_1" / "1_base.md").write_text("# Base\n\nTexto.\n", encoding="utf-8")
+    (apunte / "apunte" / "bloque_1" / "3_control_flujo.md").write_text("# Control\n\nTexto.\n", encoding="utf-8")
+    (apunte / "myst.yml").write_text(yaml.safe_dump({"version": 1, "project": {"toc": [
+        {"file": "readme.md"},
+        {"file": "apunte/bloque_1/1_base.md"},
+        {"file": "apunte/bloque_1/3_control_flujo.md"},
+    ]}}), encoding="utf-8")
+    return repo
+
+
+def test_slug_myst_como_lo_arma_myst():
+    assert slug_myst("apunte/bloque_2_memoria/2_punteros.md") == "punteros"
+    assert slug_myst("apunte/bloque_3/1A_matrices_dinamicas.md") == "a-matrices-dinamicas"
+    assert slug_myst("consignas/cadenas/ej-11-35-b35-convertir-a-snake_case.md") == "ej-11-35-b35-convertir-a-snake-case"
+    assert slugs_de_toc(["a/1D_frag.md", "b/6D_frag.md"]) == {"a/1D_frag.md": "d-frag", "b/6D_frag.md": "d-frag-1"}
+
+
+def test_temas_y_ejercicios_enlazan_al_apunte(repo_apunte):
+    _construir(repo_apunte, dir_apunte=repo_apunte / "apunte_repo")
+    sitio = repo_apunte / "sitio"
+
+    tema = (sitio / "consignas" / "lazos" / "tema-lazos.md").read_text(encoding="utf-8")
+    assert tema.startswith("# Lazos")
+    assert f"]({APUNTE}/control-flujo)" in tema
+    assert "[Aritmética](../aritmetica/tema-aritmetica.md)" in tema  # prerrequisito
+    assert "[Contar](contar.md)" in tema
+
+    ejercicio = (sitio / "consignas" / "aritmetica" / "sumar.md").read_text(encoding="utf-8")
+    assert ":::{seealso}" in ejercicio
+    assert "(tema-aritmetica.md)" in ejercicio
+    assert f"]({APUNTE}/base#operadores)" in ejercicio
+    assert "[Lazos](consignas/lazos/tema-lazos.md)" in (sitio / "index.md").read_text(encoding="utf-8")
+
+
+def test_catalogo_con_temas_y_urls(repo_apunte):
+    _construir(repo_apunte)
+    catalogo = json.loads((repo_apunte / "sitio" / "paquetes" / "catalogo.json").read_text(encoding="utf-8"))
+    sumar = next(e for e in catalogo["ejercicios"] if e["id"] == "sumar")
+    assert sumar["url"] == f"{ENUNCIADOS}/sumar"
+    assert sumar["apunte"] == [f"{APUNTE}/base#operadores"]
+    lazos = next(t for t in catalogo["temas"] if t["id"] == "lazos")
+    assert lazos["url"] == f"{ENUNCIADOS}/tema-lazos"
+    assert lazos["apunte"] == [{"ruta": "apunte/bloque_1/3_control_flujo.md", "url": f"{APUNTE}/control-flujo"}]
+    assert lazos["ejercicios"] == ["contar"]
+
+
+def test_export_apunte_escribe_y_verifica_bloques(repo_apunte):
+    apunte = repo_apunte / "apunte_repo"
+    base = ["export", "apunte", str(apunte), "--banco", str(repo_apunte / "banco")]
+
+    res = runner.invoke(app, [*base, "--verificar"])
+    assert res.exit_code == 1 and "desactualizado" in res.stdout
+
+    res = runner.invoke(app, base)
+    assert res.exit_code == 0, res.stdout
+    control = (apunte / "apunte" / "bloque_1" / "3_control_flujo.md").read_text(encoding="utf-8")
+    assert control.startswith("# Control\n\nTexto.\n\n" + MARCA_INICIO)
+    assert ":::{seealso} Ejercicios para practicar" in control
+    assert f"[Lazos]({ENUNCIADOS}/tema-lazos)" in control
+    assert f"[Contar]({ENUNCIADOS}/contar) · B2 · ~20 min" in control
+    assert control.rstrip().endswith(MARCA_FIN)
+
+    assert runner.invoke(app, base).exit_code == 0  # idempotente
+    assert (apunte / "apunte" / "bloque_1" / "3_control_flujo.md").read_text(encoding="utf-8") == control
+    assert runner.invoke(app, [*base, "--verificar"]).exit_code == 0
+
+    # un tema deja de apuntar a esa página: el bloque se quita
+    temas = yaml.safe_load((repo_apunte / "temas.yaml").read_text(encoding="utf-8"))
+    temas["temas"]["lazos"]["apunte"] = []
+    (repo_apunte / "temas.yaml").write_text(yaml.safe_dump(temas, allow_unicode=True), encoding="utf-8")
+    res = runner.invoke(app, base)
+    assert res.exit_code == 0 and "lazos" in res.stdout  # avisa: tema con ejercicios y sin apunte
+    assert MARCA_INICIO not in (apunte / "apunte" / "bloque_1" / "3_control_flujo.md").read_text(encoding="utf-8")
+
+
+def test_export_apunte_sin_url_de_enunciados(repo):
+    (repo / "apunte_repo").mkdir()
+    res = runner.invoke(app, ["export", "apunte", str(repo / "apunte_repo"), "--banco", str(repo / "banco")])
+    assert res.exit_code == 1 and "sitios.enunciados" in res.stdout

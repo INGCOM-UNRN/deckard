@@ -26,6 +26,15 @@ from deckard.core.bank import ARCHIVO_EJERCICIO, cargar_ejercicio
 from deckard.core.export import renderizar_ejercicio_md, renderizar_guia_md
 from deckard.core.guides import cargar_yaml_guia
 from deckard.core.models import Ejercicio
+from deckard.core.trazabilidad import (
+    EnlaceEjercicio,
+    SitioApunte,
+    TemaEnApunte,
+    bloque_seealso,
+    paginas_con_bloque,
+    sitio_apunte,
+    url_enunciados,
+)
 
 ARCHIVO_TEMAS = "temas.yaml"
 ARCHIVO_CATALOGO = "catalogo.json"
@@ -67,6 +76,8 @@ class Temario:
     requisitos: Dict[str, List[str]] = field(default_factory=dict)
     unidades: List[Unidad] = field(default_factory=list)
     rutas: List[Dict[str, str]] = field(default_factory=list)
+    apunte: Dict[str, List[str]] = field(default_factory=dict)  # tema → páginas del apunte que lo explican
+    sitios: Dict[str, str] = field(default_factory=dict)        # apunte / enunciados → URL publicada
 
     def titulo(self, tema: str) -> str:
         return self.titulos.get(tema) or tema.replace("_", " ").capitalize()
@@ -76,7 +87,8 @@ class Temario:
 
 
 def cargar_temario(ruta: Optional[Path]) -> Temario:
-    """Lee temas.yaml: `temas: {slug: {titulo, requiere}}`, `unidades: [{id, titulo, temas}]`, `rutas`."""
+    """Lee temas.yaml: `temas: {slug: {titulo, requiere, apunte}}`, `unidades: [{id, titulo, temas}]`,
+    `rutas` y `sitios: {apunte, enunciados}` (las URL publicadas, para enlazar entre los dos sitios)."""
     if ruta is None or not ruta.is_file():
         return Temario()
     try:
@@ -92,9 +104,12 @@ def cargar_temario(ruta: Optional[Path]) -> Temario:
         if info.get("titulo"):
             temario.titulos[slug] = str(info["titulo"])
         temario.requisitos[slug] = [str(r) for r in info.get("requiere") or []]
+        paginas = info.get("apunte") or []
+        temario.apunte[slug] = [str(p) for p in ([paginas] if isinstance(paginas, str) else paginas)]
     for u in datos.get("unidades") or []:
         temario.unidades.append(Unidad(id=str(u["id"]), titulo=str(u.get("titulo") or u["id"]), temas=list(u.get("temas") or [])))
     temario.rutas = [dict(r) for r in datos.get("rutas") or []]
+    temario.sitios = {str(k): str(v) for k, v in (datos.get("sitios") or {}).items()}
 
     desconocidos = sorted({r for reqs in temario.requisitos.values() for r in reqs} - set(temario.requisitos))
     if desconocidos:
@@ -227,6 +242,28 @@ def cargar_guias_sitio(dir_guias: Path, publicables: List[EjercicioSitio]) -> Li
 # Páginas
 # ---------------------------------------------------------------------------
 
+def pagina_tema(tema: str) -> str:
+    """Página de un tema en el sitio (relativa a la salida); su slug MyST es `tema-<tema>`."""
+    return f"{DIR_CONSIGNAS}/{tema}/tema-{tema}.md"
+
+
+def _enlaces_apunte(tema: str, temario: Temario, apunte: Optional[SitioApunte]) -> List[Tuple[str, str]]:
+    """(texto, destino) de las páginas del apunte de un tema: URL publicada, o la ruta si no hay sitio."""
+    return [(Path(r.partition("#")[0]).stem, apunte.url_de(r) if apunte else r) for r in temario.apunte.get(tema, [])]
+
+
+def _bloque_teoria(tema: str, temario: Temario, apunte: Optional[SitioApunte], enlace_tema: Optional[str]) -> List[str]:
+    enlaces = _enlaces_apunte(tema, temario, apunte)
+    if not enlaces and not enlace_tema:
+        return []
+    lineas = ["", ":::{seealso} 📖 Teoría y práctica relacionada"]
+    if enlace_tema:
+        lineas.append(f"- Todos los ejercicios de [{temario.titulo(tema)}]({enlace_tema}).")
+    lineas += [f"- En el apunte: [{texto}]({destino})" for texto, destino in enlaces]
+    lineas += [":::", ""]
+    return lineas
+
+
 def _rel(destino: str, desde_pagina: str) -> str:
     """Enlace relativo (POSIX) desde una página hacia otro archivo, ambos relativos a la salida."""
     return Path(os.path.relpath(destino, os.path.dirname(desde_pagina) or ".")).as_posix()
@@ -245,7 +282,14 @@ def _por_tema(ejercicios: List[EjercicioSitio]) -> Dict[str, List[EjercicioSitio
     return dict(sorted(por_tema.items()))
 
 
-def generar_pagina_ejercicio(e: EjercicioSitio, salida: Path, banco: Path, incluir_solucion: bool) -> Path:
+def generar_pagina_ejercicio(
+    e: EjercicioSitio,
+    salida: Path,
+    banco: Path,
+    incluir_solucion: bool,
+    temario: Optional[Temario] = None,
+    apunte: Optional[SitioApunte] = None,
+) -> Path:
     md, _ = renderizar_ejercicio_md(
         e.ejercicio,
         dir_ejercicio=e.dir,
@@ -256,6 +300,9 @@ def generar_pagina_ejercicio(e: EjercicioSitio, salida: Path, banco: Path, inclu
         dir_banco=banco,
         rel_ripkg_path=_rel(e.ripkg, e.pagina),
     )
+    if temario is not None:
+        teoria = _bloque_teoria(e.ejercicio.tema, temario, apunte, _rel(pagina_tema(e.ejercicio.tema), e.pagina))
+        md = md.rstrip("\n") + "\n" + "\n".join(teoria)
     destino = salida / e.pagina
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_text(md, encoding="utf-8")
@@ -277,6 +324,39 @@ def generar_pagina_guia(g: GuiaSitio, salida: Path, banco: Path) -> Path:
     destino = salida / g.pagina
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_text(md, encoding="utf-8")
+    return destino
+
+
+def generar_pagina_tema(
+    tema: str, lista: List[EjercicioSitio], temario: Temario, salida: Path, apunte: Optional[SitioApunte]
+) -> Path:
+    """Página de un tema: unidad, prerrequisitos, teoría en el apunte y sus ejercicios."""
+    pagina = pagina_tema(tema)
+    unidad = temario.unidad_de(tema)
+    lineas = [f"# {temario.titulo(tema)}", ""]
+    if unidad:
+        lineas.append(f"**Unidad:** {unidad.titulo}  ")
+    reqs = temario.requisitos.get(tema, [])
+    if reqs:
+        lineas.append("**Prerrequisitos:** " + ", ".join(f"[{temario.titulo(r)}]({_rel(pagina_tema(r), pagina)})" for r in reqs))
+    enlaces = _enlaces_apunte(tema, temario, apunte)
+    if enlaces:
+        lineas += ["", ":::{seealso} 📖 Teoría en el apunte"]
+        lineas += [f"- [{texto}]({destino})" for texto, destino in enlaces]
+        lineas.append(":::")
+    carga = sum(e.ejercicio.minutos_estimados for e in lista)
+    lineas += [
+        "",
+        f"## Ejercicios ({len(lista)} · ~{carga} min)",
+        "",
+        "| Ejercicio | Bloom | Minutos |",
+        "| :--- | :---: | :---: |",
+    ]
+    lineas += [f"| [{e.ejercicio.titulo}]({_rel(e.pagina, pagina)}) | B{int(e.ejercicio.bloom)} | {e.ejercicio.minutos_estimados} |"
+               for e in lista]
+    destino = salida / pagina
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text("\n".join(lineas) + "\n", encoding="utf-8")
     return destino
 
 
@@ -349,7 +429,7 @@ def generar_portada(
     ]
     for tema, lista in por_tema.items():
         carga = sum(e.ejercicio.minutos_estimados for e in lista)
-        lineas.append(f"| `{tema}` | {temario.titulo(tema)} | {len(lista)} | ~{carga} min |")
+        lineas.append(f"| `{tema}` | [{temario.titulo(tema)}]({pagina_tema(tema)}) | {len(lista)} | ~{carga} min |")
     lineas.append("")
     destino.write_text("\n".join(lineas), encoding="utf-8")
 
@@ -444,7 +524,7 @@ def construir_toc(
         return {"file": f"{prefijo}/{rel}" if prefijo not in ("", ".") else rel}
 
     def seccion_tema(tema: str, lista: List[EjercicioSitio]) -> Dict[str, Any]:
-        return {"title": temario.titulo(tema), "children": [f(e.pagina) for e in lista]}
+        return {"title": temario.titulo(tema), **f(pagina_tema(tema)), "children": [f(e.pagina) for e in lista]}
 
     toc: List[Dict[str, Any]] = [f("index.md"), f("grafo_tematico.md")]
     if guias:
@@ -522,7 +602,9 @@ def _sha256(ruta: Path) -> str:
     return hashlib.sha256(ruta.read_bytes()).hexdigest()
 
 
-def _entrada_ejercicio(e: EjercicioSitio, banco: Path, temario: Temario, paquete: Optional[Path]) -> Dict[str, Any]:
+def _entrada_ejercicio(
+    e: EjercicioSitio, banco: Path, temario: Temario, paquete: Optional[Path], apunte: Optional[SitioApunte] = None
+) -> Dict[str, Any]:
     ej = e.ejercicio
     unidad = temario.unidad_de(ej.tema)
     entrada: Dict[str, Any] = {
@@ -545,6 +627,8 @@ def _entrada_ejercicio(e: EjercicioSitio, banco: Path, temario: Temario, paquete
         "funciones": [f.model_dump(exclude_none=True) for f in ej.funciones],
         "origen": e.dir.relative_to(banco).as_posix() if e.dir.is_relative_to(banco) else e.dir.name,
         "pagina": e.pagina,
+        "url": url_enunciados(temario.sitios["enunciados"], e.pagina) if temario.sitios.get("enunciados") else None,
+        "apunte": [destino for _, destino in _enlaces_apunte(ej.tema, temario, apunte)],
         "ripkg": None,
     }
     if paquete is not None and paquete.is_file():
@@ -563,8 +647,12 @@ def escribir_catalogo(
     paquetes: Dict[str, Path],
     banco: Path,
     temario: Temario,
+    apunte: Optional[SitioApunte] = None,
 ) -> Dict[str, Any]:
-    """catalogo.json: ejercicios y guías publicados, con su paquete y hash, para ripley y otras herramientas."""
+    """catalogo.json: ejercicios, temas y guías publicados, con su paquete y hash y la teoría del apunte
+    de cada tema, para ripley y otras herramientas."""
+    base = temario.sitios.get("enunciados")
+    por_tema = _por_tema(ejercicios)
     catalogo = {
         "formato": FORMATO_CATALOGO,
         "generado": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -573,7 +661,20 @@ def escribir_catalogo(
             "guias": len(guias),
             "minutos": sum(e.ejercicio.minutos_estimados for e in ejercicios),
         },
-        "ejercicios": [_entrada_ejercicio(e, banco, temario, paquetes.get(e.ejercicio.id)) for e in ejercicios],
+        "ejercicios": [_entrada_ejercicio(e, banco, temario, paquetes.get(e.ejercicio.id), apunte) for e in ejercicios],
+        "temas": [
+            {
+                "id": tema,
+                "titulo": temario.titulo(tema),
+                "pagina": pagina_tema(tema),
+                "url": url_enunciados(base, pagina_tema(tema)) if base else None,
+                "requiere": temario.requisitos.get(tema, []),
+                "apunte": [{"ruta": ruta, "url": apunte.url_de(ruta) if apunte else None}
+                           for ruta in temario.apunte.get(tema, [])],
+                "ejercicios": [e.ejercicio.id for e in lista],
+            }
+            for tema, lista in por_tema.items()
+        ],
         "guias": [
             {
                 "id": g.slug,
@@ -628,12 +729,18 @@ def construir_sitio(
     incluir_soluciones: bool = True,
     agrupar_por_unidad: bool = False,
     paquetes: bool = True,
+    dir_apunte: Optional[Path] = None,
 ) -> ResumenSitio:
-    """Genera el sitio completo en `salida` (que se regenera desde cero) y actualiza el TOC de `myst_yml`."""
+    """Genera el sitio completo en `salida` (que se regenera desde cero) y actualiza el TOC de `myst_yml`.
+
+    Con `sitios.apunte` en temas.yaml, los temas y ejercicios enlazan a la teoría del apunte;
+    `dir_apunte` (el repositorio del apunte) da los slugs exactos de sus páginas.
+    """
     if not banco.is_dir():
         raise SitioError(f"No existe el banco {banco}.")
     _validar_salida(salida, [p for p in (banco, dir_guias) if p is not None])
     temario = cargar_temario(temas)
+    apunte = sitio_apunte(temario.sitios["apunte"], dir_apunte) if temario.sitios.get("apunte") else None
 
     datos_banco = cargar_banco_sitio(banco)
     ejercicios = datos_banco.publicables
@@ -645,7 +752,9 @@ def construir_sitio(
     salida.mkdir(parents=True)
 
     for e in ejercicios:
-        generar_pagina_ejercicio(e, salida, banco, incluir_soluciones)
+        generar_pagina_ejercicio(e, salida, banco, incluir_soluciones, temario, apunte)
+    for tema, lista in _por_tema(ejercicios).items():
+        generar_pagina_tema(tema, lista, temario, salida, apunte)
     for g in guias:
         generar_pagina_guia(g, salida, banco)
     generar_portada(ejercicios, guias, temario, salida / "index.md")
@@ -657,7 +766,7 @@ def construir_sitio(
     if paquetes:
         hechos, fallidos = empaquetar_publicables(ejercicios, salida)
         catalogo = salida / DIR_PAQUETES / ARCHIVO_CATALOGO
-        escribir_catalogo(catalogo, ejercicios, guias, hechos, banco, temario)
+        escribir_catalogo(catalogo, ejercicios, guias, hechos, banco, temario, apunte)
 
     if myst_yml is not None:
         prefijo = Path(os.path.relpath(salida.resolve(), myst_yml.resolve().parent)).as_posix()
@@ -674,4 +783,52 @@ def construir_sitio(
         fallidos_pack=fallidos,
         catalogo=catalogo,
         myst_yml=myst_yml,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bloques en el apunte (`export apunte`)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PlanApunte:
+    bloques: Dict[str, str]        # página del apunte → bloque
+    sobrantes: List[str]           # páginas con un bloque que ya no corresponde
+    temas_sin_apunte: List[str]    # temas con ejercicios publicados y sin página en el apunte
+
+
+def _destacados(lista: List[EjercicioSitio], cantidad: int) -> List[EjercicioSitio]:
+    """Los primeros para practicar: verificados primero, de menor a mayor nivel de Bloom y duración."""
+    return sorted(lista, key=lambda e: (not e.ejercicio.verificado, *_orden_en_tema(e)))[:cantidad]
+
+
+def planificar_apunte(banco: Path, temas: Path, dir_apunte: Path, cantidad: int = 5) -> PlanApunte:
+    """Qué bloque de ejercicios va en cada página del apunte, según el `apunte` de cada tema."""
+    temario = cargar_temario(temas)
+    base = temario.sitios.get("enunciados")
+    if not base:
+        raise SitioError(f"{temas}: falta `sitios.enunciados` (la URL publicada del banco) para enlazar desde el apunte.")
+    por_tema = _por_tema(cargar_banco_sitio(banco).publicables)
+
+    por_pagina: Dict[str, List[TemaEnApunte]] = defaultdict(list)
+    for tema, paginas in temario.apunte.items():
+        lista = por_tema.get(tema)
+        if not lista:
+            continue
+        entrada = TemaEnApunte(
+            tema=tema,
+            titulo=temario.titulo(tema),
+            url=url_enunciados(base, pagina_tema(tema)),
+            total=len(lista),
+            ejercicios=[EnlaceEjercicio(e.ejercicio.titulo, url_enunciados(base, e.pagina), int(e.ejercicio.bloom),
+                                        e.ejercicio.minutos_estimados) for e in _destacados(lista, cantidad)],
+        )
+        for ruta in dict.fromkeys(r.partition("#")[0] for r in paginas):
+            por_pagina[ruta].append(entrada)
+
+    bloques = {ruta: bloque_seealso(temas_pag) for ruta, temas_pag in por_pagina.items()}
+    return PlanApunte(
+        bloques=bloques,
+        sobrantes=[r for r in paginas_con_bloque(dir_apunte) if r not in bloques],
+        temas_sin_apunte=sorted(t for t in por_tema if not temario.apunte.get(t)),
     )
