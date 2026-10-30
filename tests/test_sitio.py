@@ -381,3 +381,26 @@ def test_export_apunte_sin_url_de_enunciados(repo):
     (repo / "apunte_repo").mkdir()
     res = runner.invoke(app, ["export", "apunte", str(repo / "apunte_repo"), "--banco", str(repo / "banco")])
     assert res.exit_code == 1 and "sitios.enunciados" in res.stdout
+
+
+def test_normas_de_estilo_y_instrucciones(repo_apunte):
+    temas = yaml.safe_load((repo_apunte / "temas.yaml").read_text(encoding="utf-8"))
+    temas["reglas"] = {"0x3004h": {"apunte": "reglas/0x3004h.md", "cuando": r"\bmain\b"},
+                       "0x9999h": {"cuando": r"\bnunca_aparece\b"}}
+    (repo_apunte / "temas.yaml").write_text(yaml.safe_dump(temas, allow_unicode=True), encoding="utf-8")
+    _construir(repo_apunte)
+    pagina = (repo_apunte / "sitio" / "consignas" / "lazos" / "contar.md").read_text(encoding="utf-8")
+    assert f"Normas de estilo que aplican: [`0x3004h`]({APUNTE}/x3004h)" in pagina
+    assert "0x9999h" not in pagina
+
+    apunte = repo_apunte / "apunte_repo"
+    runner.invoke(app, ["export", "apunte", str(apunte), "--banco", str(repo_apunte / "banco")])
+    assert "ripley run <ejercicio>.ripkg" in (apunte / "apunte" / "bloque_1" / "1_base.md").read_text(encoding="utf-8")
+
+
+def test_regla_con_patron_invalido(repo):
+    temas = yaml.safe_load((repo / "temas.yaml").read_text(encoding="utf-8"))
+    temas["reglas"] = {"0x3004h": {"cuando": "(sin cerrar"}}
+    (repo / "temas.yaml").write_text(yaml.safe_dump(temas), encoding="utf-8")
+    with pytest.raises(SitioError, match="0x3004h"):
+        cargar_temario(repo / "temas.yaml")

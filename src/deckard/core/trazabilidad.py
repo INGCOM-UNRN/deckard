@@ -149,7 +149,14 @@ def bloque_seealso(temas: List[TemaEnApunte]) -> str:
         lineas.append(f"- **[{t.titulo}]({t.url})**: {t.total} ejercicios en el banco de enunciados.")
         for e in t.ejercicios:
             lineas.append(f"  - [{e.titulo}]({e.url}) · B{e.bloom} · ~{e.minutos} min")
-    lineas += [":::", MARCA_FIN, ""]
+    lineas += [
+        "",
+        "Cada ejercicio trae su paquete `.ripkg` con los casos de prueba: descargalo desde la página del",
+        "ejercicio y verificá tu solución con `ripley run <ejercicio>.ripkg`.",
+        ":::",
+        MARCA_FIN,
+        "",
+    ]
     return "\n".join(lineas)
 
 

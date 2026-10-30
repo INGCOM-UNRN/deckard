@@ -78,6 +78,11 @@ class Temario:
     rutas: List[Dict[str, str]] = field(default_factory=list)
     apunte: Dict[str, List[str]] = field(default_factory=dict)  # tema → páginas del apunte que lo explican
     sitios: Dict[str, str] = field(default_factory=dict)        # apunte / enunciados → URL publicada
+    reglas: Dict[str, Dict[str, str]] = field(default_factory=dict)  # regla de estilo → {apunte, cuando}
+
+    def reglas_de(self, codigo: str) -> List[str]:
+        """Las reglas de estilo cuyo patrón `cuando` aparece en el código (solución o cabecera)."""
+        return [r for r, info in self.reglas.items() if info.get("cuando") and re.search(info["cuando"], codigo)]
 
     def titulo(self, tema: str) -> str:
         return self.titulos.get(tema) or tema.replace("_", " ").capitalize()
@@ -88,7 +93,9 @@ class Temario:
 
 def cargar_temario(ruta: Optional[Path]) -> Temario:
     """Lee temas.yaml: `temas: {slug: {titulo, requiere, apunte}}`, `unidades: [{id, titulo, temas}]`,
-    `rutas` y `sitios: {apunte, enunciados}` (las URL publicadas, para enlazar entre los dos sitios)."""
+    `rutas`, `sitios: {apunte, enunciados}` (las URL publicadas, para enlazar entre los dos sitios) y
+    `reglas: {<regla>: {apunte, cuando}}` (normas de estilo que se señalan en los ejercicios cuyo código
+    coincide con la expresión regular `cuando`)."""
     if ruta is None or not ruta.is_file():
         return Temario()
     try:
@@ -110,6 +117,13 @@ def cargar_temario(ruta: Optional[Path]) -> Temario:
         temario.unidades.append(Unidad(id=str(u["id"]), titulo=str(u.get("titulo") or u["id"]), temas=list(u.get("temas") or [])))
     temario.rutas = [dict(r) for r in datos.get("rutas") or []]
     temario.sitios = {str(k): str(v) for k, v in (datos.get("sitios") or {}).items()}
+    for regla, info in (datos.get("reglas") or {}).items():
+        info = info or {}
+        try:
+            re.compile(str(info.get("cuando") or ""))
+        except re.error as exc:
+            raise SitioError(f"{ruta}: la regla {regla} tiene un `cuando` inválido: {exc}") from None
+        temario.reglas[str(regla)] = {k: str(v) for k, v in info.items()}
 
     desconocidos = sorted({r for reqs in temario.requisitos.values() for r in reqs} - set(temario.requisitos))
     if desconocidos:
@@ -254,14 +268,27 @@ def _enlaces_apunte(tema: str, temario: Temario, apunte: Optional[SitioApunte]) 
     return [(apunte.titulo_de(r), apunte.url_de(r)) for r in temario.apunte.get(tema, [])]
 
 
-def _bloque_teoria(tema: str, temario: Temario, apunte: Optional[SitioApunte], enlace_tema: Optional[str]) -> List[str]:
+def _bloque_teoria(
+    tema: str,
+    temario: Temario,
+    apunte: Optional[SitioApunte],
+    enlace_tema: Optional[str],
+    reglas: Optional[List[str]] = None,
+) -> List[str]:
     enlaces = _enlaces_apunte(tema, temario, apunte)
-    if not enlaces and not enlace_tema:
+    if not enlaces and not enlace_tema and not reglas:
         return []
     lineas = ["", ":::{seealso} 📖 Teoría y práctica relacionada"]
     if enlace_tema:
         lineas.append(f"- Todos los ejercicios de [{temario.titulo(tema)}]({enlace_tema}).")
     lineas += [f"- En el apunte: [{texto}]({destino})" for texto, destino in enlaces]
+    if reglas:
+        marcas = []
+        for regla in reglas:
+            ruta = temario.reglas[regla].get("apunte")
+            destino = (apunte.url_de(ruta) if apunte else ruta) if ruta else None
+            marcas.append(f"[`{regla}`]({destino})" if destino else f"`{regla}`")
+        lineas.append("- Normas de estilo que aplican: " + " · ".join(marcas))
     lineas += [":::", ""]
     return lineas
 
@@ -303,7 +330,9 @@ def generar_pagina_ejercicio(
         rel_ripkg_path=_rel(e.ripkg, e.pagina),
     )
     if temario is not None:
-        teoria = _bloque_teoria(e.ejercicio.tema, temario, apunte, _rel(pagina_tema(e.ejercicio.tema), e.pagina))
+        codigo = (e.ejercicio.solucion_c or "") + "\n" + (e.ejercicio.generar_cabecera_c() if e.ejercicio.funciones else "")
+        teoria = _bloque_teoria(e.ejercicio.tema, temario, apunte, _rel(pagina_tema(e.ejercicio.tema), e.pagina),
+                                temario.reglas_de(codigo))
         md = md.rstrip("\n") + "\n" + "\n".join(teoria)
     destino = salida / e.pagina
     destino.parent.mkdir(parents=True, exist_ok=True)
