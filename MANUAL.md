@@ -242,6 +242,31 @@ de los paquetes y del catálogo. Los ejercicios inválidos se informan y el coma
 error (salvo `--permitir-invalidos`). `sitio/` se borra en cada corrida, por eso no puede contener
 al banco ni a las guías.
 
+#### Diagramas en los enunciados
+
+Un enunciado puede traer diagramas como texto, igual que las preguntas de alucarD:
+
+- **Estructuras de datos**: un bloque ```` ```estructura ```` con el bloque de statics en YAML
+  (arreglo, matriz, lista, pila, cola, árbol; ver el MANUAL de alucarD). deckard no lo dibuja: el
+  hook de pre-commit `alucard-diagramas` de alucarD deja el SVG versionado junto al ejercicio, en
+  `<ejercicio>/diagramas/estructura-<hash>.svg` (`<hash>`: 12 dígitos del SHA-1 del cuerpo del bloque,
+  sin espacios al principio ni al final). `export myst` cambia el bloque por esa imagen, copiada
+  junto a la página del ejercicio o de la guía. Así el CI no necesita alucarD.
+- **Mermaid**: un bloque ```` ```mermaid ```` pasa a la directiva `{mermaid}` de MyST.
+
+Un bloque ```` ```estructura ```` sin su SVG es un error en `export myst` y en `lint`
+(`diagrama-sin-svg`): el sitio no publica el YAML en crudo. En el repositorio de enunciados:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/INGCOM-UNRN/alucarD
+    rev: <commit>
+    hooks:
+      - id: alucard-diagramas
+        files: ^banco/.*\.md$
+```
+
 ### Trazabilidad con el apunte (`deckard export apunte`)
 
 `temas.yaml` dice qué páginas del apunte explican cada tema y dónde están publicados los dos sitios:

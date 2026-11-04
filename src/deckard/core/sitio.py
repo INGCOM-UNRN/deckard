@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from deckard.core.bank import ARCHIVO_EJERCICIO, cargar_ejercicio
+from deckard.core.diagramas_sitio import mensaje_faltantes, publicar_diagramas
 from deckard.core.export import renderizar_ejercicio_md, renderizar_guia_md
 from deckard.core.guides import cargar_yaml_guia
 from deckard.core.models import Ejercicio
@@ -336,8 +337,16 @@ def generar_pagina_ejercicio(
         md = md.rstrip("\n") + "\n" + "\n".join(teoria)
     destino = salida / e.pagina
     destino.parent.mkdir(parents=True, exist_ok=True)
-    destino.write_text(md, encoding="utf-8")
+    destino.write_text(_con_diagramas(md, [e.dir], destino, e.pagina), encoding="utf-8")
     return destino
+
+
+def _con_diagramas(md: str, fuentes: List[Path], destino: Path, pagina: str) -> str:
+    """Los ```estructura como imagen (SVG versionado por el hook de alucarD) y los mermaid como directiva."""
+    res = publicar_diagramas(md, fuentes, destino)
+    if res.faltantes:
+        raise SitioError(mensaje_faltantes(pagina, res.faltantes, fuentes))
+    return res.markdown
 
 
 def generar_pagina_guia(g: GuiaSitio, salida: Path, banco: Path) -> Path:
@@ -354,7 +363,7 @@ def generar_pagina_guia(g: GuiaSitio, salida: Path, banco: Path) -> Path:
     )
     destino = salida / g.pagina
     destino.parent.mkdir(parents=True, exist_ok=True)
-    destino.write_text(md, encoding="utf-8")
+    destino.write_text(_con_diagramas(md, [e.dir for e in g.ejercicios], destino, g.pagina), encoding="utf-8")
     return destino
 
 

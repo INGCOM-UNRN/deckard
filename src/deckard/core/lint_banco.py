@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from deckard.core.bank import ARCHIVO_EJERCICIO, cargar_ejercicio
+from deckard.core.diagramas_sitio import svgs_faltantes
 from deckard.core.models import Ejercicio
 from deckard.core.signature_checker import verificar_firmas_ejercicio
 
@@ -111,6 +112,10 @@ def _revisar_ejercicio(ej: Ejercicio, dir_ej: Path, banco: Path, temas: Optional
         pruebas = dir_ej / "tests"
         if not (pruebas.is_dir() and any(pruebas.rglob("*.in"))) and not ej.tests_funciones:
             h(AVISO, "sin-pruebas", "se publica sin casos de prueba")
+        faltan = svgs_faltantes(ej.enunciado_md or "", dir_ej)
+        if faltan:
+            h(ERROR, "diagrama-sin-svg", f"{len(faltan)} bloque(s) ```estructura sin su SVG en diagramas/ "
+              f"({', '.join(faltan)}): corré `alucard diagramas-md` (hook alucard-diagramas)")
     return out
 
 

@@ -404,3 +404,56 @@ def test_regla_con_patron_invalido(repo):
     (repo / "temas.yaml").write_text(yaml.safe_dump(temas), encoding="utf-8")
     with pytest.raises(SitioError, match="0x3004h"):
         cargar_temario(repo / "temas.yaml")
+
+
+ENUNCIADO_CON_DIAGRAMAS = """Seguí la pila:
+
+```estructura
+type: stack
+values: [1, 2]
+```
+
+Y el flujo:
+
+```mermaid
+graph LR
+  A --> B
+```
+"""
+
+
+def _con_diagramas(repo: Path, svg: bool) -> Path:
+    from deckard.core.bank import cargar_ejercicio
+    from deckard.core.diagramas_sitio import nombre_svg
+
+    dir_contar = repo / "banco" / "lazos" / "contar"
+    ej = cargar_ejercicio(dir_contar)
+    ej.enunciado_md = ENUNCIADO_CON_DIAGRAMAS
+    guardar_ejercicio(ej, repo / "banco" / "lazos")
+    nombre = nombre_svg("type: stack\nvalues: [1, 2]\n")
+    if svg:
+        (dir_contar / "diagramas").mkdir()
+        (dir_contar / "diagramas" / nombre).write_text("<svg xmlns='http://www.w3.org/2000/svg'/>", encoding="utf-8")
+    return dir_contar / "diagramas" / nombre
+
+
+def test_diagramas_de_estructura_como_imagen_y_mermaid_como_directiva(repo):
+    svg = _con_diagramas(repo, svg=True)
+    _construir(repo)
+    sitio = repo / "sitio"
+
+    pagina = (sitio / "consignas" / "lazos" / "contar.md").read_text(encoding="utf-8")
+    assert "```estructura" not in pagina and "type: stack" not in pagina
+    assert f"![Diagrama de la estructura](diagramas/{svg.name})" in pagina
+    assert "```{mermaid}\ngraph LR\n  A --> B\n```" in pagina
+    assert (sitio / "consignas" / "lazos" / "diagramas" / svg.name).read_bytes() == svg.read_bytes()
+
+    # La guía que incluye el ejercicio también lleva la imagen, copiada junto a su página.
+    (guia,) = [p for p in (sitio / "guias").rglob("*.md") if "Diagrama de la estructura" in p.read_text("utf-8")]
+    assert (guia.parent / "diagramas" / svg.name).is_file()
+
+
+def test_diagrama_sin_svg_es_error(repo):
+    _con_diagramas(repo, svg=False)
+    with pytest.raises(SitioError, match="alucard diagramas-md"):
+        _construir(repo)

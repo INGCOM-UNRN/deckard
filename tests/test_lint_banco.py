@@ -145,3 +145,19 @@ def test_verificar_soluciones_con_ripley(repo, tmp_path):
     res = _revisar(repo, verificar_soluciones=True, ruta_ripley=f"python3 {ripley}")
     solucion = [h for h in res.hallazgos if h.regla == "solucion"]
     assert [(h.donde, h.mensaje) for h in solucion] == [("aritmetica/sumar", "falla el caso 2")]
+
+
+def test_diagrama_sin_svg(repo):
+    from deckard.core.diagramas_sitio import nombre_svg
+
+    from deckard.core.bank import cargar_ejercicio
+
+    dir_ej = _ej(repo / "banco", "pila", "lazos")
+    ej = cargar_ejercicio(dir_ej)
+    ej.enunciado_md = "Mirá:\n\n```estructura\ntype: stack\nvalues: [1]\n```\n"
+    guardar_ejercicio(ej, repo / "banco" / "lazos")
+    (falta,) = [h for h in _revisar(repo).hallazgos if h.regla == "diagrama-sin-svg"]
+    assert falta.nivel == ERROR and "alucard diagramas-md" in falta.mensaje
+    (dir_ej / "diagramas").mkdir()
+    (dir_ej / "diagramas" / nombre_svg("type: stack\nvalues: [1]")).write_text("<svg/>", encoding="utf-8")
+    assert not [h for h in _revisar(repo).hallazgos if h.regla == "diagrama-sin-svg"]

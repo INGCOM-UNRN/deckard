@@ -8,6 +8,7 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Agregado
 
+- **export myst**: los bloques ```` ```estructura ```` de los enunciados se publican como imagen, con el SVG que versiona junto al ejercicio el hook `alucard-diagramas` de alucarD (`diagramas/estructura-<hash>.svg`), copiado junto a la página del ejercicio y de la guía; los ```` ```mermaid ```` pasan a la directiva `{mermaid}`. Un bloque sin su SVG es un error, también en `lint` (regla `diagrama-sin-svg`).
 - **trazabilidad con el apunte** (Ola 34): `temas.yaml` declara por tema las páginas del apunte (`apunte`) y las URL de los dos sitios (`sitios`). `export myst` genera una página por tema y enlaza temas y ejercicios a la teoría (con `--apunte`, slugs exactos del TOC del apunte); el catálogo suma `temas`, `url` y `apunte`. `export apunte` escribe en el apunte el bloque «Ejercicios para practicar» de cada tema, entre marcas, y con `--verificar` falla si está desactualizado.
 - **export myst**: verifica cada `.ripkg` publicado (hash del catálogo, manifiesto de la práctica, hashes del payload, sin pruebas ocultas) y termina con error si alguno falla.
 - **lint**: revisa el banco completo (temario y `dep:<tema>`, ids, YAML que no carga con su motivo, firmas de las funciones, casos de prueba, guías, trazabilidad con el apunte), informa por regla, `--json`, `--estricto` y `--apunte`; `--verificar-soluciones` pasa cada solución por `ripley check`; la compilación del `starter_code` pasa a `--compilar`.
