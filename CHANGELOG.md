@@ -30,6 +30,7 @@ versiones según [SemVer](https://semver.org/lang/es/).
 
 ### Corregido
 
+- **firmas**: una llamada recursiva como `return buscar(r->izq, c);` se tomaba por una definición con tipo de retorno `return` y el lint informaba un retorno inconsistente.
 - **plantillas MyST**: la tabla de especificación de funciones (y las de rúbrica y casos) salía cortada por líneas en blanco entre filas; la solución anidaba ``` dentro de ``` y el desplegable se cerraba antes de tiempo.
 - **init_tests**: la suite generada para p1_test no compilaba: usaba `INIT_TESTS` y `ASSERT_EQ`, que p1_test no tiene, `ASSERT_TRUE` con dos argumentos y `assert()` de los bloques de código del banco (N-DECKARD-07).
 

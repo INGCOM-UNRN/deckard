@@ -29,6 +29,9 @@ class DiscrepanciaFirma:
         }
 
 
+_NO_TIPOS = {"return", "else", "case", "goto", "do"}
+
+
 def _extraer_firmas_de_codigo_c(codigo_c: str) -> Dict[str, FuncionSpec]:
     """Extrae firmas de funciones definidas en un archivo C mediante regex."""
     firmas: Dict[str, FuncionSpec] = {}
@@ -43,6 +46,9 @@ def _extraer_firmas_de_codigo_c(codigo_c: str) -> Dict[str, FuncionSpec]:
         ret = ret.strip()
         nombre = nombre.strip()
         params = params.strip()
+        # `return f(x);` o `else g();` son llamadas (p. ej. recursivas), no firmas.
+        if ret.split()[0] in _NO_TIPOS:
+            continue
         if nombre not in ("if", "for", "while", "switch", "return"):
             firmas[nombre] = FuncionSpec(
                 nombre=nombre,

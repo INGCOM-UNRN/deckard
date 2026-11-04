@@ -116,3 +116,18 @@ def test_failure_hints():
     res = runner.invoke(app, ["failure-hints", "SIGSEGV"])
     assert res.exit_code == 0
     assert "Pista Pedagógica" in res.stdout
+
+
+def test_llamada_recursiva_no_es_una_firma():
+    ej = Ejercicio(
+        id="ej-rec",
+        titulo="Buscar en ABB",
+        tema="arboles",
+        bloom=NivelBloom.APLICAR,
+        minutos_estimados=20,
+        funciones=[FuncionSpec(nombre="buscar", retorno="bool", parametros="const nodo_t *r, int c")],
+        solucion_c=("bool buscar(const nodo_t *r, int c)\n{\n    if (r == NULL)\n        return false;\n"
+                    "    if (c < r->c)\n        return buscar(r->izq, c);\n"
+                    "    else\n        return buscar(r->der, c);\n}\n"),
+    )
+    assert verificar_firmas_ejercicio(ej) == []
