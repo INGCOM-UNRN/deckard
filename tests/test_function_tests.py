@@ -132,6 +132,50 @@ def test_ejecutar_tests_funciones_fallo():
     assert res.fallidos > 0
 
 
+@pytest.mark.parametrize("usar_daedalus", [False, True])
+def test_ejecutar_tests_resuelve_cabecera_local(tmp_path: Path, monkeypatch, usar_daedalus):
+    import subprocess
+    from deckard.core import function_runner
+
+    (tmp_path / "suma.h").write_text("int sumar(int a, int b);\n", encoding="utf-8")
+    ej = Ejercicio(
+        id="sumador", titulo="Sumador", tema="aritmetica", bloom=NivelBloom.RECORDAR,
+        minutos_estimados=10, enunciado_md="Sumar",
+        solucion_c='#include "suma.h"\nint sumar(int a, int b) { return a + b; }',
+        funciones=[FuncionSpec(nombre="sumar", retorno="int", parametros="int a, int b")],
+        tests_funciones=[CasoTestFuncion(nombre="suma", funcion="sumar", codigo="assert(sumar(2, 3) == 5);")],
+    )
+
+    if usar_daedalus:
+        def compilar(src, binario, directorio):
+            assert directorio == tmp_path
+            proc = subprocess.run(["gcc", "-I", str(directorio), str(src), "-o", str(binario)],
+                                  capture_output=True, text=True)
+            return proc.returncode == 0, proc.stderr
+        monkeypatch.setattr(function_runner, "_compilar_con_daedalus", compilar)
+    else:
+        monkeypatch.setattr(function_runner, "_compilar_con_daedalus", lambda *args: None)
+    resultado = ejecutar_tests_funciones(ej, tmp_path)
+    assert resultado.ok, resultado.detalle
+    assert resultado.exitosos == 1
+
+
+def test_daedalus_recibe_directorio_de_cabeceras(tmp_path: Path, monkeypatch):
+    from types import SimpleNamespace
+    from deckard.core.function_runner import _compilar_con_daedalus
+
+    compiler = pytest.importorskip("daedalus.core.compiler")
+    llamadas = []
+
+    def compilar(fuentes, **opciones):
+        llamadas.append((fuentes, opciones))
+        return SimpleNamespace(exito=True, stderr_crudo="")
+
+    monkeypatch.setattr(compiler, "compilar_archivos", compilar)
+    assert _compilar_con_daedalus(tmp_path / "harness.c", tmp_path / "bin", tmp_path) == (True, "")
+    assert llamadas[0][1]["flags_adicionales"] == ["-I", str(tmp_path.resolve())]
+
+
 def test_cli_new_con_funciones(tmp_path: Path):
     banco = tmp_path / "banco"
     res = runner.invoke(app, [

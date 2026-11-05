@@ -119,12 +119,13 @@ def generar_codigo_harness_c(ejercicio: Ejercicio, solucion_c: str) -> str:
     return "\n".join(lineas)
 
 
-def _compilar_con_daedalus(src_file: Path, bin_file: Path) -> Optional[Tuple[bool, str]]:
+def _compilar_con_daedalus(src_file: Path, bin_file: Path, directorio_includes: Optional[Path] = None) -> Optional[Tuple[bool, str]]:
     try:
         from daedalus.core.compiler import compilar_archivos
     except ImportError:
         return None  # sin el extra `ecosistema` se usa el camino propio
-    res = compilar_archivos([src_file], binario_salida=bin_file)
+    flags = ["-I", str(directorio_includes.resolve())] if directorio_includes else []
+    res = compilar_archivos([src_file], binario_salida=bin_file, flags_adicionales=flags)
     return res.exito, res.stderr_crudo
 
 
@@ -185,7 +186,7 @@ def ejecutar_tests_funciones(
         src_file.write_text(codigo_harness, encoding="utf-8")
 
         # 1. Compilar delegando en Daedalus con fallback a GCC
-        daed_res = _compilar_con_daedalus(src_file, bin_file)
+        daed_res = _compilar_con_daedalus(src_file, bin_file, dir_ejercicio)
         if daed_res is not None:
             comp_ok, comp_err = daed_res
             if not comp_ok:
@@ -204,6 +205,7 @@ def ejecutar_tests_funciones(
                 "-Wall",
                 "-Wextra",
                 "-std=c11",
+                *(["-I", str(dir_ejercicio.resolve())] if dir_ejercicio else []),
                 str(src_file),
                 "-o",
                 str(bin_file),
