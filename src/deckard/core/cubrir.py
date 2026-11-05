@@ -348,14 +348,15 @@ def generar(dir_ejercicio: Path, ej: Ejercicio, tyrell: Optional[str] = None, co
     """Escribe tests/funciones/ con el driver, las especificaciones (si no existen) y los casos."""
     res = ResultadoCubrir(ej.id)
     tyrell = tyrell or shutil.which("tyrell")
-    if tyrell is None:
-        raise NoAutomatizable("falta tyrell: uv tool install git+https://github.com/INGCOM-UNRN-P1/tyrell")
     solucion = dir_ejercicio / "solucion.c"
     if not solucion.is_file():
         raise NoAutomatizable("falta solucion.c: la referencia de los .out es la solución de la cátedra")
     texto_solucion = solucion.read_text(encoding="utf-8")
     relleno = funciones_de_relleno(texto_solucion)
     fns = funciones_driver(ej, relleno)
+    # Después de lo anterior: si el ejercicio no se puede automatizar, tyrell no cambia nada.
+    if tyrell is None:
+        raise NoAutomatizable("falta tyrell: uv tool install git+https://github.com/INGCOM-UNRN-P1/tyrell")
     res.omitidas = [fn.nombre for fn in ej.funciones if fn.nombre not in {f.nombre for f in fns}]
     constantes = constantes_comparadas(texto_solucion)
     salida = dir_ejercicio / DIR_CASOS
