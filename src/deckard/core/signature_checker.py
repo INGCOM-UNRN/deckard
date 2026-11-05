@@ -38,7 +38,7 @@ def _extraer_firmas_de_codigo_c(codigo_c: str) -> Dict[str, FuncionSpec]:
     # Patrón básico para capturar declaraciones o definiciones de funciones C
     # ej: int calcular_suma(const int* vec, size_t n) {
     patron = re.compile(
-        r"^\s*([a-zA-Z_][\w\s\*]*?)\s+([a-zA-Z_]\w*)\s*\(([^)]*)\)\s*(?:\{|;)",
+        r"^\s*([a-zA-Z_][\w\s]*?(?:\s*\*+\s*|\s+))([a-zA-Z_]\w*)\s*\(([^)]*)\)\s*(?:\{|;)",
         re.MULTILINE,
     )
     for match in patron.finditer(codigo_c):

@@ -131,3 +131,18 @@ def test_llamada_recursiva_no_es_una_firma():
                     "    else\n        return buscar(r->der, c);\n}\n"),
     )
     assert verificar_firmas_ejercicio(ej) == []
+
+
+@pytest.mark.parametrize("codigo", ["char *crear(void) { return NULL; }", "char* crear(void) { return NULL; }", "char * crear(void) { return NULL; }"])
+def test_firma_con_retorno_puntero(codigo):
+    ej = Ejercicio(id="puntero", titulo="Puntero", tema="memoria", bloom=NivelBloom.APLICAR,
+                   minutos_estimados=10, funciones=[FuncionSpec(nombre="crear", retorno="char *", parametros="void")],
+                   solucion_c=codigo)
+    assert verificar_firmas_ejercicio(ej) == []
+
+
+def test_firma_con_retorno_puntero_dispar():
+    ej = Ejercicio(id="puntero", titulo="Puntero", tema="memoria", bloom=NivelBloom.APLICAR,
+                   minutos_estimados=10, funciones=[FuncionSpec(nombre="crear", retorno="int *", parametros="void")],
+                   solucion_c="char *crear(void) { return NULL; }")
+    assert [d.tipo for d in verificar_firmas_ejercicio(ej)] == ["RETORNO_DISPAR"]
