@@ -287,8 +287,9 @@ def _calificar(eval_results: Path, pesos: dict, salida: Path, titulo: str) -> No
     console.print(tabla)
     if any(c.provisoria for c in calificaciones):
         console.print("[yellow]* Nota provisoria: hay criterios sin evidencia automática o evaluaciones sin terminar.[/yellow]")
-    console.print(f"[bold green]✓ Calificaciones para Moodle:[/bold green] [cyan]{csv_path}[/cyan] · "
+    console.print(f"[bold green]✓ Calificaciones:[/bold green] [cyan]{csv_path}[/cyan] · "
                   f"devoluciones en [cyan]{devoluciones}[/cyan]")
+    console.print("Para importarlas en la tarea de Moodle: [bold]dredd moodle paquete --planilla <hoja de la tarea>[/bold]")
 
 
 @app.command("init-io-files")
