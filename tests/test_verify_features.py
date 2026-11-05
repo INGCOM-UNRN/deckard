@@ -6,7 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from deckard.cli import app
-from deckard.core.bank import cargar_ejercicio, guardar_ejercicio
+from deckard.core.bank import actualizar_verificacion, cargar_ejercicio, guardar_ejercicio
 from deckard.core.models import Ejercicio, NivelBloom
 from deckard.core.verify import ResultadoVerify
 
@@ -99,3 +99,29 @@ def test_verify_single_marks_unverified_on_failure(banco_verify, tmp_path):
         # Comprobar log
         assert log_file.is_file()
         assert "0x0002h Linker Error" in log_file.read_text(encoding="utf-8")
+
+
+def test_actualizar_verificacion_preserva_metadatos_existentes(banco_verify):
+    ruta = banco_verify / "ej-verif-ok" / "ejercicio.yaml"
+    contenido = ruta.read_text(encoding="utf-8")
+    contenido += "publicar: true\nstarter_code: ''\ndiagramas: []\n"
+    ruta.write_text(contenido, encoding="utf-8")
+
+    actualizar_verificacion(ruta.parent, True)
+
+    actualizado = cargar_ejercicio(ruta.parent)
+    assert actualizado.verificado is True
+    assert "publicar: true" in ruta.read_text(encoding="utf-8")
+    assert "starter_code: ''" in ruta.read_text(encoding="utf-8")
+    assert "diagramas: []" in ruta.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("opciones", [["ej-verif-fallo"], ["--all"], ["--all", "--json"]])
+def test_no_guardar_no_modifica_yaml_si_falla(banco_verify, opciones):
+    ruta = banco_verify / "ej-verif-fallo" / "ejercicio.yaml"
+    original = ruta.read_bytes()
+    fallo = ResultadoVerify(ejercicio="ej-verif-fallo", ok=False, detalle="Fallo")
+    with patch("deckard.cli.verify.verificar_ejercicio", return_value=fallo):
+        res = runner.invoke(app, ["verify", *opciones, "--banco", str(banco_verify), "--no-guardar"])
+    assert res.exit_code == 1
+    assert ruta.read_bytes() == original

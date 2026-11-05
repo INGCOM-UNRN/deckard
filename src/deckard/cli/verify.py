@@ -153,7 +153,7 @@ def verify(
         dir_ej, ej = candidatos[0]
         resultado = verificar_ejercicio(dir_ej, ruta_ripley=ripley)
         if (dir_ej / "ejercicio.yaml").is_file():
-            if not resultado.ok or guardar:
+            if guardar:
                 actualizar_verificacion(dir_ej, resultado.ok)
 
         if as_json:
@@ -170,7 +170,8 @@ def verify(
         color = "green" if resultado.ok else "red"
         console.print(f"[{color}]{resultado.marca} {resultado.ejercicio}[/{color}] — {resultado.detalle}")
         if not resultado.ok:
-            console.print(f"[dim]Marcado como no-verificado (verificado: false).[/dim]")
+            if guardar:
+                console.print("[dim]Marcado como no-verificado (verificado: false).[/dim]")
             if log_fallos:
                 _escribir_log_fallos_verificacion(
                     log_fallos,
@@ -187,7 +188,7 @@ def verify(
         for dir_ej, ej in candidatos:
             res = verificar_ejercicio(dir_ej, ruta_ripley=ripley)
             if (dir_ej / "ejercicio.yaml").is_file():
-                if not res.ok or guardar:
+                if guardar:
                     actualizar_verificacion(dir_ej, res.ok)
             if res.ok:
                 total_ok += 1
@@ -235,7 +236,7 @@ def verify(
             res = verificar_ejercicio(dir_ej, ruta_ripley=ripley)
 
             if (dir_ej / "ejercicio.yaml").is_file():
-                if not res.ok or guardar:
+                if guardar:
                     actualizar_verificacion(dir_ej, res.ok)
 
             if res.ok:

@@ -110,12 +110,10 @@ def guardar_ejercicio(ejercicio: Ejercicio, dir_base: Path) -> Path:
 
 def actualizar_verificacion(dir_ejercicio: Path, verificado: bool) -> None:
     """Actualiza el campo 'verificado' en ejercicio.yaml."""
-    ej = cargar_ejercicio(dir_ejercicio)
-    ej.verificado = verificado
     meta = dir_ejercicio / ARCHIVO_EJERCICIO
-    datos = ej.to_yaml_dict()
-    datos.pop("solucion_c", None)
-    datos.pop("enunciado_md", None)
+    with open(meta, encoding="utf-8") as f:
+        datos = yaml.safe_load(f) or {}
+    datos["verificado"] = verificado
     with open(meta, "w", encoding="utf-8") as f:
         yaml.safe_dump(datos, f, allow_unicode=True, sort_keys=False)
 
