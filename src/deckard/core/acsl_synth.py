@@ -62,7 +62,7 @@ def sintetizar_tests_de_acsl(ej: Ejercicio, codigo_c: Optional[str] = None) -> L
 
             codigo = f"""    /* Contrato ACSL sintetizado: ensures {ens}; */
     // Requiere: {', '.join(requires) if requires else 'Sin precondiciones especiales'}
-    // Validar postcondición en runtime
+    // Validar postcondición en ejecución
     assert({c_postcond});"""
 
             nuevos_tests.append(CasoTestFuncion(

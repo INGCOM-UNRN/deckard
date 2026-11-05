@@ -26,7 +26,7 @@ CATALOGO_PISTAS_FALLA: Dict[str, PistaFalla] = {
             "¿Accediste al índice 'n' en un vector de tamaño 'n' (índice fuera de rango)?",
             "¿Estás usando memoria luego de liberarla con free() (Use-After-Free)?",
         ],
-        sugerencia_accion="Ejecutá el programa bajo GDB con 'gdb ./programa' y luego 'backtrace' (bt) para ubicar la línea exacta.",
+        sugerencia_accion="Ejecutá el programa bajo GDB con 'gdb ./programa' y luego `backtrace` (bt) para ubicar la línea exacta.",
     ),
     "SIGABRT": PistaFalla(
         codigo_falla="SIGABRT",
@@ -55,7 +55,7 @@ CATALOGO_PISTAS_FALLA: Dict[str, PistaFalla] = {
         explicacion_didactica="La función retornó un valor diferente al estipulado por el oráculo del test.",
         preguntas_guia=[
             "¿Contemplaste los casos borde (vector de 0 elementos, números negativos)?",
-            "¿El bucle principal itera exactamente la cantidad de veces necesaria?",
+            "¿El lazo principal itera exactamente la cantidad de veces necesaria?",
             "¿El acumulador fue inicializado correctamente en 0 o 1?",
         ],
         sugerencia_accion="Imprimí con printf o inspeccioná con el depurador las variables internas en cada ciclo de la función.",
@@ -98,5 +98,5 @@ def obtener_pista_falla(codigo_o_texto: str) -> PistaFalla:
             "¿Compilaste con flags de advertencia completas (-Wall -Wextra -Werror)?",
             "¿Todas las variables locales están debidamente inicializadas antes de su lectura?",
         ],
-        sugerencia_accion="Aislá la función conflictiva en un testcase mínimo reproducible.",
+        sugerencia_accion="Aislá la función conflictiva en un caso de prueba mínimo reproducible.",
     )

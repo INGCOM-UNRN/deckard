@@ -66,7 +66,7 @@ def generar_rubrica_markdown(ej: Ejercicio, pesos: Optional[Dict[str, float]] = 
         "### Niveles de Desempeño",
         "- **Excelente (100% del puntaje)**: Cumple todas las aserciones, código limpio sin advertencias de sanitizers ni estilo.",
         "- **Bueno (75% del puntaje)**: Funcionalidad completa, detalles menores de formateo o advertencias de estilo leves.",
-        "- **Regular (50% del puntaje)**: Falla en casos borde específicos o presenta advertencias leves de memoria sin crash.",
+        "- **Regular (50% del puntaje)**: Falla en casos borde específicos o presenta advertencias leves de memoria sin fallas.",
         "- **Insuficiente (0% del puntaje)**: Error de compilación, falla en el flujo principal o caída catastrófica (SIGSEGV).",
         "",
         "---",

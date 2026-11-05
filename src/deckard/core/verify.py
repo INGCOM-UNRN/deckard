@@ -77,7 +77,7 @@ def verificar_ejercicio(
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        return ResultadoVerify(dir_ejercicio.name, False, "timeout de ripley")
+        return ResultadoVerify(dir_ejercicio.name, False, "tiempo límite de ripley")
 
     ok = False
     resumen = ""

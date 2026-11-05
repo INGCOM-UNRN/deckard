@@ -245,7 +245,7 @@ def ejecutar_tests_funciones(
                 total=len(ejercicio.tests_funciones),
                 exitosos=0,
                 fallidos=len(ejercicio.tests_funciones),
-                detalle="Timeout en la ejecución de tests de funciones (bucle infinito o bloqueo).",
+                detalle="Tiempo límite agotado en los tests de funciones (lazo infinito o bloqueo).",
                 casos=[],
             )
 

@@ -226,7 +226,7 @@ def auditar_solucion_sanitizers(
             return ResultadoSanitizer(
                 ejercicio=ej.id,
                 ok=False,
-                detalle="Timeout durante la ejecución con sanitizers.",
+                detalle="Tiempo límite agotado durante la ejecución con sanitizers.",
             )
 
         salida_err = proc_run.stderr.decode("utf-8", errors="replace") if isinstance(proc_run.stderr, bytes) else str(proc_run.stderr)

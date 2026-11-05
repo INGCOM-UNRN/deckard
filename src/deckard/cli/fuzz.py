@@ -93,7 +93,7 @@ def fuzz(
     all_exercises: bool = typer.Option(False, "--all", "-a", help="Ejecutar fuzzing sobre todos los ejercicios del banco."),
     tema: Optional[str] = typer.Option(None, "--tema", "-t", help="Filtrar por tema."),
     bloom: Optional[int] = typer.Option(None, "--bloom", "-b", min=1, max=5, help="Filtrar por nivel de Bloom (1-5)."),
-    cantidad: int = typer.Option(8, "--cantidad", "-n", help="Cantidad de testcases a generar por ejercicio."),
+    cantidad: int = typer.Option(8, "--cantidad", "-n", help="Cantidad de casos de prueba a generar por ejercicio."),
     segundos: int = typer.Option(15, "--segundos", help="Segundos de fuzzing si libFuzzer está disponible."),
     sin_libfuzzer: bool = typer.Option(False, "--sin-libfuzzer", help="Forzar modo determinista sin libFuzzer."),
     fail_fast: bool = typer.Option(False, "--fail-fast", help="Detenerse inmediatamente ante el primer error."),
@@ -163,7 +163,7 @@ def fuzz(
         proc = subprocess.run(cmd_args, capture_output=True, text=True)
         rc = proc.returncode
         if rc == 0:
-            console.print("[green]✓ Testcases endurecidos. Recordá marcar 'verificado' tras re-correr deckard verify.[/green]")
+            console.print("[green]✓ Casos de prueba endurecidos. Recordá marcar 'verificado' tras re-correr deckard verify.[/green]")
         else:
             actualizar_verificacion(dir_ej, False)
             console.print(f"[red]✗ Fallo en fuzzing para '{ej.id}'. Marcado como no-verificado.[/red]")
@@ -239,7 +239,7 @@ def fuzz(
             if proc.returncode == 0:
                 total_exitos += 1
                 casos_in = list(destino.glob("*.in")) if destino.is_dir() else []
-                tabla.add_row(ej.id, ej.tema, f"B{int(ej.bloom)}", "[green]✓ Generado[/green]", f"{len(casos_in)} testcases en tests/")
+                tabla.add_row(ej.id, ej.tema, f"B{int(ej.bloom)}", "[green]✓ Generado[/green]", f"{len(casos_in)} casos de prueba en tests/")
             else:
                 total_fallos += 1
                 actualizar_verificacion(dir_ej, False)

@@ -50,7 +50,7 @@ def auditar_completitud_guia(
         cant_tests = len(ej.tests_funciones)
         tests_str = f"[green]✓ {cant_tests} tests[/green]" if cant_tests > 0 else "[yellow]0 tests[/yellow]"
         if cant_tests == 0 and ej.tiene_funciones:
-            obs.append("Sin testcases para validar funciones")
+            obs.append("Sin casos de prueba para validar funciones")
 
         obs_str = "; ".join(obs) if obs else "[green]Todo correcto[/green]"
         tabla.add_row(ej.id, enunc_str, start_str, sol_str, tests_str, obs_str)
