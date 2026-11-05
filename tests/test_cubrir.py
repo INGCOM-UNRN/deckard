@@ -8,8 +8,9 @@ import pytest
 
 from deckard.core.bank import cargar_ejercicio
 from deckard.core.cubrir import (NoAutomatizable, constantes_comparadas, driver_c, especificacion, FuncionDriver,
+                                 funciones_driver,
                                  funciones_de_relleno, generar, Parametro, solucion_sin_main)
-from deckard.core.models import Ejercicio
+from deckard.core.models import Ejercicio, FuncionSpec
 
 YAML = """id: abs-y-signo
 titulo: Valor absoluto y signo
@@ -53,7 +54,7 @@ def test_driver_compila_con_la_solucion_y_responde(tmp_path):
 
 def test_parametros_no_escalares_no_se_automatizan():
     ej = Ejercicio(id="x", titulo="X", tema="t", bloom=1, minutos_estimados=5,
-                   funciones=[{"nombre": "sumar", "retorno": "int", "parametros": "const int *v, size_t n"}])
+                   funciones=[{"nombre": "sumar", "retorno": "int", "parametros": "const int *v"}])
     with pytest.raises(NoAutomatizable, match="no es escalar"):
         driver_c(ej)
 
@@ -109,9 +110,9 @@ def test_una_solucion_de_relleno_no_genera_casos(tmp_path):
 @requiere_herramientas
 def test_omite_el_relleno_y_lo_no_escalar_pero_prueba_el_resto(tmp_path):
     d = _ejercicio_con(tmp_path, "- {nombre: ejecutar_algo, retorno: int, parametros: int val}\n"
-                                 "- {nombre: suma, retorno: int, parametros: 'const int *v, int n'}\n"
+                                 "- {nombre: suma, retorno: int, parametros: 'const int *v'}\n"
                                  "- {nombre: siguiente, retorno: int, parametros: int n}\n",
-                       RELLENO + "int suma(const int *v, int n) { return n ? v[0] : 0; }\n"
+                       RELLENO + "int suma(const int *v) { return v[0]; }\n"
                                  "int siguiente(int n) { return n + 1; }\nint main(void) { return 0; }\n")
     res = generar(d, cargar_ejercicio(d), cobertura=False)
     assert set(res.casos) == {"siguiente"} and res.omitidas == ["ejecutar_algo", "suma"]
@@ -159,3 +160,71 @@ def test_la_medida_de_ramas_no_cuenta_el_main_ni_los_test_de_la_solucion(tmp_pat
                        "int main(int argc, char **argv) { if (argc > 5) { return 1; } return 0; }\n")
     res = generar(d, cargar_ejercicio(d))
     assert res.ramas == {"tomadas": 2, "totales": 2}
+
+
+def _ej_con(parametros, retorno="int", nombre="f"):
+    return Ejercicio(id="prueba", titulo="Prueba", tema="arreglos", bloom=1, minutos_estimados=5,
+                     funciones=[FuncionSpec(nombre=nombre, retorno=retorno, parametros=parametros)])
+
+
+def _correr(tmp_path, ej, solucion, entrada):
+    driver = tmp_path / "driver.c"
+    fuente = tmp_path / "solucion.c"
+    binario = tmp_path / "prog"
+    driver.write_text(driver_c(ej), encoding="utf-8")
+    fuente.write_text(solucion, encoding="utf-8")
+    subprocess.run(["gcc", "-std=c11", "-Wall", "-Werror", str(driver), str(fuente), "-o", str(binario)], check=True)
+    return subprocess.run([str(binario)], input=entrada, capture_output=True, text=True, check=True).stdout
+
+
+@pytest.mark.skipif(shutil.which("gcc") is None, reason="requiere gcc")
+def test_un_arreglo_con_su_largo_se_lee_y_se_escribe_despues_de_la_llamada(tmp_path):
+    solucion = ("int f(int v[], int n)\n{\n    int suma = 0;\n    for (int i = 0; i < n; i++) { suma += v[i]; v[i] = 0; }\n"
+                "    return suma;\n}\n")
+    assert _correr(tmp_path, _ej_con("int v[], int n"), solucion, "f 3 1 2 3\nf 0\n") == "6\n0 0 0\n0\n\n"
+
+
+@pytest.mark.skipif(shutil.which("gcc") is None, reason="requiere gcc")
+def test_un_arreglo_const_no_se_vuelve_a_escribir(tmp_path):
+    solucion = "double f(const double *datos, size_t cant, int k)\n{\n    return cant ? datos[0] * k : 0;\n}\n"
+    ej = _ej_con("const double *datos, size_t cant, int k", "double")
+    assert _correr(tmp_path, ej, "#include <stddef.h>\n" + solucion, "f 2 1.5 9 2\n") == "3.0000\n"
+
+
+@pytest.mark.skipif(shutil.which("gcc") is None, reason="requiere gcc")
+def test_enteros_de_ancho_fijo(tmp_path):
+    solucion = "#include <stdint.h>\nuint16_t f(uint32_t x)\n{\n    return (uint16_t)(x + 1);\n}\n"
+    assert _correr(tmp_path, _ej_con("uint32_t x", "uint16_t"), solucion, "f 65535\nf 2\n") == "0\n3\n"
+
+
+@pytest.mark.parametrize("parametros", [
+    "int v[], int buscado",   # el nombre no dice que sea el largo
+    "int *a, int *b, int n",  # dos punteros: no se sabe cuál es de entrada
+    "int v[]",
+    "char s[], int n",        # una cadena no es un arreglo numérico
+    "int **m, int n",
+    "punto_t *p, int n",
+])
+def test_lo_que_no_se_sabe_leer_sigue_sin_automatizarse(parametros):
+    with pytest.raises(NoAutomatizable):
+        driver_c(_ej_con(parametros))
+
+
+def test_la_especificacion_de_un_arreglo_pide_el_largo_y_no_una_regla_para_el(tmp_path):
+    fn = funciones_driver(_ej_con("int v[], int n, int k"))[0]
+    datos = especificacion(_ej_con("int v[], int n, int k"), fn)
+    assert datos["format_template"] == "f {v_n} {v} {k}\n"
+    assert [r["name"] for r in datos["rules"]] == ["v", "k"] and datos["rules"][0]["type"] == "array"
+
+
+@requiere_herramientas
+def test_generar_cubre_una_funcion_con_arreglo(tmp_path):
+    d = _ejercicio_con(tmp_path, "- {nombre: maximo, retorno: int, parametros: 'const int v[], int n'}\n",
+                       "int maximo(const int v[], int n)\n{\n    int m = 0;\n"
+                       "    for (int i = 0; i < n; i++) { if (v[i] > m) { m = v[i]; } }\n    return m;\n}\n"
+                       "int main(void) { return 0; }\n")
+    res = generar(d, cargar_ejercicio(d), cobertura=False)
+    assert res.casos["maximo"] > 0
+    entradas = sorted((d / "tests" / "funciones").glob("maximo_*.in"))
+    linea = entradas[0].read_text(encoding="utf-8").split()
+    assert linea[0] == "maximo" and int(linea[1]) == len(linea) - 2

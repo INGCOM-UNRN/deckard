@@ -5,9 +5,11 @@ cada alumno escribe su `main`. Para probarlo con casos `.in`/`.out`:
 
 1. `driver_c` arma un driver: lee de stdin líneas `<función> <argumentos…>`, llama a la función y
    escribe el resultado, una línea por llamada. Sólo para parámetros y retornos escalares
-   (enteros, `char`, `bool`, `float`, `double`) o `void`; las demás funciones se omiten, y si no
-   queda ninguna el ejercicio no se automatiza (`NoAutomatizable`). Tampoco las de relleno, que
-   no resuelven la consigna: sus `.out` rechazarían soluciones correctas (Ola 45).
+   (enteros, también de ancho fijo, `char`, `bool`, `float`, `double`) o `void`, y arreglos
+   numéricos seguidos de su largo (`int v[], int n`): el caso trae el largo y los elementos, y el
+   arreglo se imprime después del retorno, salvo que sea `const`. Las demás funciones se omiten, y
+   si no queda ninguna el ejercicio no se automatiza (`NoAutomatizable`). Tampoco las de relleno,
+   que no resuelven la consigna: sus `.out` rechazarían soluciones correctas (Ola 45).
 2. `especificacion` escribe, por función, el YAML de `tyrell generate`/`cubrir` con una regla por
    parámetro. Los rangos, ampliados con las constantes que compara la solución, son una
    propuesta: el docente los revisa (que no pidan algo que el enunciado no pide) y vuelve a
@@ -30,7 +32,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Collection, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Collection, Dict, List, Optional, Sequence, Set, Tuple
 
 import yaml
 
@@ -55,6 +57,18 @@ _ESCALARES: Dict[str, Tuple[str, str, Dict[str, object]]] = {
     "bool": ("%d", "%d", {"type": "integer", "min_val": 0, "max_val": 1}),
     "char": (" %c", "%c", {"type": "string", "length": 1}),
 }
+# Los de ancho fijo se leen en el tipo más ancho y se convierten: scanf no tiene formato propio sin
+# <inttypes.h>, y el driver arma los formatos como texto.
+for _bits in (8, 16, 32, 64):
+    _ESCALARES[f"int{_bits}_t"] = ("%lld", "%lld", {"type": "integer", "min_val": -10, "max_val": 30})
+    _ESCALARES[f"uint{_bits}_t"] = ("%llu", "%llu", {"type": "integer", "min_val": 0, "max_val": 40})
+_ELEMENTOS = set(_ESCALARES) - {"bool", "char"}
+_TIPOS_DE_LARGO = {"int", "unsigned int", "long", "unsigned long", "size_t"}
+_PUNTERO_O_ARREGLO = re.compile(r"(?P<const>const\s+)?(?P<tipo>[\w ]+?)\s*"
+                                r"(?:\*\s*(?:const\s+)?(?P<puntero>\w+)|(?P<arreglo>\w+)\s*\[\s*\w*\s*\])")
+# Sólo por el nombre se distingue `int v[], int n` de `int v[], int buscado`.
+_NOMBRE_DE_LARGO = re.compile(r"(n|len|largo|longitud|tam|tamanio|tamano|size|cant|cantidad|total|num)"
+                              r"|(n|len|largo|tam|cant|num)_\w+", re.I)
 _SIN_CALIFICADORES = re.compile(r"\b(const|volatile|signed)\b")
 _COMENTARIOS = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
 # La función que el banco trae en lugar de una solución: no tiene relación con la consigna.
@@ -66,6 +80,7 @@ _NO_LLAMADAS = re.compile(rf"\b(?:{MAIN_RENOMBRADO}|test_\w+)\s*\([^)]*\)\s*\{{"
 _CONSTANTE = re.compile(r"(?:[<>]=?|[=!]=)\s*(-?\d+)\b|\bcase\s+(-?\d+)\s*:")
 # Más allá de esto una constante suele ser un tope de tamaño, no un borde que convenga recorrer.
 CONSTANTE_MAXIMA = 5000
+LARGO_ARREGLO = 8
 
 
 class NoAutomatizable(ValueError):
@@ -76,6 +91,14 @@ class NoAutomatizable(ValueError):
 class Parametro:
     tipo: str
     nombre: str
+    forma: str = "escalar"  # "arreglo" o "largo", el del arreglo que lo precede
+    constante: bool = False
+
+    @property
+    def declaracion(self) -> str:
+        if self.forma == "arreglo":
+            return f"{'const ' if self.constante else ''}{self.tipo} *{self.nombre}"
+        return f"{self.tipo} {self.nombre}"
 
 
 @dataclass
@@ -98,17 +121,44 @@ def _parametros(fn: FuncionSpec) -> List[Parametro]:
     texto = (fn.parametros or "").strip()
     if texto in ("", "void"):
         return []
-    salida = []
-    for i, crudo in enumerate(p.strip() for p in texto.split(",")):
+    crudos = [p.strip() for p in texto.split(",")]
+    salida: List[Parametro] = []
+    for i, crudo in enumerate(crudos):
+        if salida and salida[-1].forma == "arreglo":
+            salida.append(_largo(fn, crudo, i))
+            continue
         if any(c in crudo for c in "*[]()") or re.search(r"\b(struct|union|enum)\b", crudo):
-            raise NoAutomatizable(f"{fn.nombre}: el parámetro «{crudo}» no es escalar")
-        palabras = crudo.split()
-        nombre = palabras[-1] if len(palabras) > 1 else f"p{i}"
-        tipo = _normalizar(" ".join(palabras[:-1]) if len(palabras) > 1 else crudo)
-        if tipo not in _ESCALARES:
-            raise NoAutomatizable(f"{fn.nombre}: tipo «{tipo}» sin soporte en el driver")
-        salida.append(Parametro(tipo, nombre))
+            salida.append(_arreglo(fn, crudo, crudos[i + 1] if i + 1 < len(crudos) else ""))
+            continue
+        salida.append(_escalar(fn, crudo, i))
     return salida
+
+
+def _escalar(fn: FuncionSpec, crudo: str, i: int) -> Parametro:
+    palabras = crudo.split()
+    nombre = palabras[-1] if len(palabras) > 1 else f"p{i}"
+    tipo = _normalizar(" ".join(palabras[:-1]) if len(palabras) > 1 else crudo)
+    if tipo not in _ESCALARES:
+        raise NoAutomatizable(f"{fn.nombre}: tipo «{tipo}» sin soporte en el driver")
+    return Parametro(tipo, nombre)
+
+
+def _largo(fn: FuncionSpec, crudo: str, i: int) -> Parametro:
+    parametro = _escalar(fn, crudo, i)
+    parametro.forma = "largo"
+    return parametro
+
+
+def _arreglo(fn: FuncionSpec, crudo: str, siguiente: str) -> Parametro:
+    """Un arreglo numérico sólo si el parámetro que sigue dice cuántos elementos tiene."""
+    m = _PUNTERO_O_ARREGLO.fullmatch(crudo)
+    tipo = _normalizar(m["tipo"]) if m else ""
+    palabras = siguiente.split()
+    es_largo = (len(palabras) > 1 and _normalizar(" ".join(palabras[:-1])) in _TIPOS_DE_LARGO
+                and _NOMBRE_DE_LARGO.fullmatch(palabras[-1]) is not None)
+    if m is None or tipo not in _ELEMENTOS or not es_largo:
+        raise NoAutomatizable(f"{fn.nombre}: el parámetro «{crudo}» no es escalar")
+    return Parametro(tipo, m["puntero"] or m["arreglo"], "arreglo", bool(m["const"]))
 
 
 def funciones_de_relleno(texto: str) -> Set[str]:
@@ -148,35 +198,94 @@ def funciones_driver(ej: Ejercicio, excluir: Collection[str] = ()) -> List[Funci
     return salida
 
 
+def _tipo_de_lectura(tipo: str) -> str:
+    """El tipo C en el que scanf deja el valor, antes de convertirlo al del parámetro."""
+    if tipo == "bool":
+        return "int"
+    if re.fullmatch(r"u?int\d+_t", tipo):
+        return "unsigned long long" if tipo.startswith("u") else "long long"
+    return tipo
+
+
+_ERROR_DE_ENTRADA = ["            {", '                printf("ERROR_ENTRADA\\n");', "                return 2;", "            }"]
+
+
+def _lectura_de_parametros(parametros: Sequence[Parametro]) -> List[str]:
+    lineas = [f"            {_tipo_de_lectura(p.tipo)} {p.nombre} = 0;" for p in parametros if p.forma != "arreglo"]
+    if not any(p.forma == "arreglo" for p in parametros):
+        if parametros:
+            fmt = " ".join(_ESCALARES[p.tipo][0].strip() for p in parametros)
+            refs = ", ".join(f"&{p.nombre}" for p in parametros)
+            lineas.append(f'            if (scanf("{fmt}", {refs}) != {len(parametros)})')
+            lineas += _ERROR_DE_ENTRADA
+        return lineas
+    for k, p in enumerate(parametros):
+        if p.forma == "largo":
+            continue
+        if p.forma == "escalar":
+            lineas.append(f'            if (scanf("{_ESCALARES[p.tipo][0].strip()}", &{p.nombre}) != 1)')
+            lineas += _ERROR_DE_ENTRADA
+            continue
+        largo = parametros[k + 1]
+        lectura = _tipo_de_lectura(p.tipo)
+        lineas.append(f'            if (scanf("{_ESCALARES[largo.tipo][0].strip()}", &{largo.nombre}) != 1)')
+        lineas += _ERROR_DE_ENTRADA
+        lineas.append(f"            {p.tipo} *{p.nombre} = calloc({largo.nombre} > 0 ? (size_t){largo.nombre} : 1, "
+                      f"sizeof *{p.nombre});")
+        lineas.append(f"            for ({largo.tipo} deckard_i = 0; deckard_i < {largo.nombre}; deckard_i++)")
+        lineas.append("            {")
+        lineas.append(f"                {lectura} deckard_valor = 0;")
+        lineas.append(f'                if (scanf("{_ESCALARES[p.tipo][0].strip()}", &deckard_valor) != 1)')
+        lineas += [f"    {linea}" for linea in _ERROR_DE_ENTRADA]
+        lineas.append(f"                {p.nombre}[deckard_i] = ({p.tipo})deckard_valor;")
+        lineas.append("            }")
+    return lineas
+
+
+def _escritura_de_arreglos(parametros: Sequence[Parametro]) -> List[str]:
+    """Los arreglos después de la llamada: una función que ordena o invierte responde en ellos."""
+    lineas: List[str] = []
+    for k, p in enumerate(parametros):
+        if p.forma != "arreglo":
+            continue
+        largo = parametros[k + 1]
+        if not p.constante:
+            lineas.append(f"            for ({largo.tipo} deckard_i = 0; deckard_i < {largo.nombre}; deckard_i++)")
+            lineas.append("            {")
+            lineas.append(f'                printf("%s{_ESCALARES[p.tipo][1]}", deckard_i ? " " : "", '
+                          f"({_tipo_de_lectura(p.tipo)}){p.nombre}[deckard_i]);")
+            lineas.append("            }")
+            lineas.append('            printf("\\n");')
+        lineas.append(f"            free({p.nombre});")
+    return lineas
+
+
 def driver_c(ej: Ejercicio, excluir: Collection[str] = ()) -> str:
     """Fuente del driver: lee `<función> <args>` por línea y escribe el resultado de cada llamada."""
     fns = funciones_driver(ej, excluir)
     lineas = [
         f"/* Driver de casos de {ej.id}, generado por deckard (Ola 32): no editar a mano. */",
-        "#include <stdbool.h>", "#include <stddef.h>", "#include <stdio.h>", "#include <string.h>", "",
+        "#include <stdbool.h>", "#include <stddef.h>", "#include <stdint.h>", "#include <stdio.h>",
+        "#include <stdlib.h>", "#include <string.h>", "",
     ]
-    lineas += [f"{FuncionSpec(nombre=f.nombre, retorno=f.retorno, parametros=', '.join(f'{p.tipo} {p.nombre}' for p in f.parametros) or 'void').firma}" for f in fns]
+    lineas += [f"{FuncionSpec(nombre=f.nombre, retorno=f.retorno, parametros=', '.join(p.declaracion for p in f.parametros) or 'void').firma}" for f in fns]
     lineas += ["", "int main(void)", "{", "    char funcion[64];",
                '    while (scanf("%63s", funcion) == 1)', "    {"]
     for k, f in enumerate(fns):
         cond = "if" if k == 0 else "else if"
         lineas.append(f'        {cond} (strcmp(funcion, "{f.nombre}") == 0)')
         lineas.append("        {")
-        for p in f.parametros:
-            ctipo = "int" if p.tipo == "bool" else p.tipo
-            lineas.append(f"            {ctipo} {p.nombre} = 0;")
-        if f.parametros:
-            fmt = " ".join(_ESCALARES[p.tipo][0].strip() for p in f.parametros)
-            refs = ", ".join(f"&{p.nombre}" for p in f.parametros)
-            lineas.append(f'            if (scanf("{fmt}", {refs}) != {len(f.parametros)})')
-            lineas += ["            {", '                printf("ERROR_ENTRADA\\n");', "                return 2;", "            }"]
-        args = ", ".join(f"({p.tipo}){p.nombre}" if p.tipo == "bool" else p.nombre for p in f.parametros)
+        lineas += _lectura_de_parametros(f.parametros)
+        args = ", ".join(f"({p.tipo}){p.nombre}" if p.forma != "arreglo" and _tipo_de_lectura(p.tipo) != p.tipo
+                         else p.nombre for p in f.parametros)
         llamada = f"{f.nombre}({args})"
-        valor = f"(int){llamada}" if f.retorno == "bool" else llamada
+        lectura_retorno = _tipo_de_lectura(f.retorno)
+        valor = f"({lectura_retorno}){llamada}" if lectura_retorno != f.retorno else llamada
         if f.retorno == "void":
             lineas.append(f"            {llamada};")
         else:
             lineas.append(f'            printf("{_ESCALARES[f.retorno][1]}\\n", {valor});')
+        lineas += _escritura_de_arreglos(f.parametros)
         lineas.append("        }")
     lineas += ["        else", "        {", '            printf("FUNCION_DESCONOCIDA %s\\n", funcion);',
                "            return 2;", "        }", "    }", "    return 0;", "}", ""]
@@ -184,18 +293,22 @@ def driver_c(ej: Ejercicio, excluir: Collection[str] = ()) -> str:
 
 
 def _regla(parametro: Parametro, constantes: Sequence[int]) -> Dict[str, object]:
-    regla: Dict[str, object] = {"name": parametro.nombre, **_ESCALARES[parametro.tipo][2]}
+    regla: Dict[str, Any] = {"name": parametro.nombre, **_ESCALARES[parametro.tipo][2]}
     if regla["type"] == "integer" and parametro.tipo != "bool" and constantes:
         minimo = int(regla["min_val"])
         regla["min_val"] = min(minimo, 0 if minimo == 0 else min(constantes) - 1)  # sin signo no baja de 0
         regla["max_val"] = max(int(regla["max_val"]), max(constantes) + 1)
+    if parametro.forma == "arreglo":
+        regla.update(type="array", length=LARGO_ARREGLO)
     return regla
 
 
 def especificacion(ej: Ejercicio, fn: FuncionDriver, cantidad: int = 12, semilla: int = 32,
                    constantes: Sequence[int] = ()) -> Dict[str, object]:
-    reglas = [_regla(p, constantes) for p in fn.parametros]
-    plantilla = " ".join([fn.nombre] + [f"{{{p.nombre}}}" for p in fn.parametros]) + "\n"
+    reglas = [_regla(p, constantes) for p in fn.parametros if p.forma != "largo"]
+    campos = [f"{{{p.nombre}_n}} {{{p.nombre}}}" if p.forma == "arreglo" else f"{{{p.nombre}}}"
+              for p in fn.parametros if p.forma != "largo"]
+    plantilla = " ".join([fn.nombre, *campos]) + "\n"
     if not reglas:
         raise NoAutomatizable(f"{fn.nombre}: sin parámetros, una sola llamada no necesita tyrell")
     return {"name": fn.nombre, "count": cantidad, "seed": semilla, "format_template": plantilla, "rules": reglas}
