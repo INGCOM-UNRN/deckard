@@ -161,3 +161,12 @@ def test_diagrama_sin_svg(repo):
     (dir_ej / "diagramas").mkdir()
     (dir_ej / "diagramas" / nombre_svg("type: stack\nvalues: [1]")).write_text("<svg/>", encoding="utf-8")
     assert not [h for h in _revisar(repo).hallazgos if h.regla == "diagrama-sin-svg"]
+
+
+def test_lint_avisa_la_solucion_de_relleno(tmp_path):
+    banco = tmp_path / "banco"
+    dir_ej = _ej(banco, "con-relleno", "funciones")
+    (dir_ej / "solucion.c").write_text("int ejecutar_x(int val)\n{\n    if (val <= 0) return 0;\n    return val * 2;\n}\n",
+                                       encoding="utf-8")
+    hallazgos = [h for h in revisar_banco(banco).hallazgos if h.regla == "solucion-relleno"]
+    assert len(hallazgos) == 1 and "ejecutar_x" in hallazgos[0].mensaje and hallazgos[0].nivel != ERROR

@@ -5,10 +5,13 @@ cada alumno escribe su `main`. Para probarlo con casos `.in`/`.out`:
 
 1. `driver_c` arma un driver: lee de stdin líneas `<función> <argumentos…>`, llama a la función y
    escribe el resultado, una línea por llamada. Sólo para parámetros y retornos escalares
-   (enteros, `char`, `bool`, `float`, `double`); el resto queda fuera (`NoAutomatizable`).
+   (enteros, `char`, `bool`, `float`, `double`) o `void`; las demás funciones se omiten, y si no
+   queda ninguna el ejercicio no se automatiza (`NoAutomatizable`). Tampoco las de relleno, que
+   no resuelven la consigna: sus `.out` rechazarían soluciones correctas (Ola 45).
 2. `especificacion` escribe, por función, el YAML de `tyrell generate`/`cubrir` con una regla por
-   parámetro. Los rangos son una propuesta: el docente los revisa (que no pidan algo que el
-   enunciado no pide) y vuelve a generar.
+   parámetro. Los rangos, ampliados con las constantes que compara la solución, son una
+   propuesta: el docente los revisa (que no pidan algo que el enunciado no pide) y vuelve a
+   generar.
 3. `generar` compila la solución de la cátedra con el driver (su `main` queda renombrado) como
    referencia, con UBSan: los casos en que la solución desborda o tiene comportamiento indefinido
    se descartan, porque su salida no es un resultado esperable.
@@ -20,13 +23,14 @@ archivo del alumno junto al driver.
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Collection, Dict, List, Optional, Sequence, Set, Tuple
 
 import yaml
 
@@ -52,6 +56,16 @@ _ESCALARES: Dict[str, Tuple[str, str, Dict[str, object]]] = {
     "char": (" %c", "%c", {"type": "string", "length": 1}),
 }
 _SIN_CALIFICADORES = re.compile(r"\b(const|volatile|signed)\b")
+_COMENTARIOS = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
+# La función que el banco trae en lugar de una solución: no tiene relación con la consigna.
+_RELLENO = re.compile(r"\b(\w+)\s*\(\s*int\s+val\s*\)\s*\{\s*if\s*\(\s*val\s*<=\s*0\s*\)\s*return\s*0;"
+                      r"\s*return\s*val\s*\*\s*2;\s*\}")
+# Lo que puede tener llaves sin abrir un bloque.
+_LITERAL = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*.*?\*/|//[^\n]*', re.S)
+_NO_LLAMADAS = re.compile(rf"\b(?:{MAIN_RENOMBRADO}|test_\w+)\s*\([^)]*\)\s*\{{")
+_CONSTANTE = re.compile(r"(?:[<>]=?|[=!]=)\s*(-?\d+)\b|\bcase\s+(-?\d+)\s*:")
+# Más allá de esto una constante suele ser un tope de tamaño, no un borde que convenga recorrer.
+CONSTANTE_MAXIMA = 5000
 
 
 class NoAutomatizable(ValueError):
@@ -97,21 +111,46 @@ def _parametros(fn: FuncionSpec) -> List[Parametro]:
     return salida
 
 
-def funciones_driver(ej: Ejercicio) -> List[FuncionDriver]:
+def funciones_de_relleno(texto: str) -> Set[str]:
+    """Nombres de las funciones de una solución cuyo cuerpo es el relleno del banco."""
+    return set(_RELLENO.findall(_COMENTARIOS.sub("", texto)))
+
+
+def constantes_comparadas(texto: str) -> List[int]:
+    """Las constantes enteras con que la solución compara, para que el rango propuesto las alcance."""
+    valores = {int(a or b) for a, b in _CONSTANTE.findall(_COMENTARIOS.sub("", texto))}
+    return sorted(v for v in valores if abs(v) <= CONSTANTE_MAXIMA)
+
+
+def _funcion_driver(fn: FuncionSpec) -> FuncionDriver:
+    retorno = _normalizar(fn.retorno or "void")
+    if retorno != "void" and retorno not in _ESCALARES:
+        raise NoAutomatizable(f"{fn.nombre}: el retorno «{fn.retorno}» no es escalar")
+    return FuncionDriver(fn.nombre, retorno, _parametros(fn))
+
+
+def funciones_driver(ej: Ejercicio, excluir: Collection[str] = ()) -> List[FuncionDriver]:
+    """Las funciones que el driver puede llamar; si no queda ninguna, `NoAutomatizable`."""
     if not ej.funciones:
         raise NoAutomatizable("el ejercicio no declara funciones")
     salida = []
+    motivos = []
     for fn in ej.funciones:
-        retorno = _normalizar(fn.retorno or "void")
-        if retorno not in _ESCALARES:
-            raise NoAutomatizable(f"{fn.nombre}: el retorno «{fn.retorno}» no es escalar")
-        salida.append(FuncionDriver(fn.nombre, retorno, _parametros(fn)))
+        if fn.nombre in excluir:
+            motivos.append(f"{fn.nombre}: es una función de relleno, no una solución")
+            continue
+        try:
+            salida.append(_funcion_driver(fn))
+        except NoAutomatizable as exc:
+            motivos.append(str(exc))
+    if not salida:
+        raise NoAutomatizable(motivos[0])
     return salida
 
 
-def driver_c(ej: Ejercicio) -> str:
+def driver_c(ej: Ejercicio, excluir: Collection[str] = ()) -> str:
     """Fuente del driver: lee `<función> <args>` por línea y escribe el resultado de cada llamada."""
-    fns = funciones_driver(ej)
+    fns = funciones_driver(ej, excluir)
     lineas = [
         f"/* Driver de casos de {ej.id}, generado por deckard (Ola 32): no editar a mano. */",
         "#include <stdbool.h>", "#include <stddef.h>", "#include <stdio.h>", "#include <string.h>", "",
@@ -134,15 +173,28 @@ def driver_c(ej: Ejercicio) -> str:
         args = ", ".join(f"({p.tipo}){p.nombre}" if p.tipo == "bool" else p.nombre for p in f.parametros)
         llamada = f"{f.nombre}({args})"
         valor = f"(int){llamada}" if f.retorno == "bool" else llamada
-        lineas.append(f'            printf("{_ESCALARES[f.retorno][1]}\\n", {valor});')
+        if f.retorno == "void":
+            lineas.append(f"            {llamada};")
+        else:
+            lineas.append(f'            printf("{_ESCALARES[f.retorno][1]}\\n", {valor});')
         lineas.append("        }")
     lineas += ["        else", "        {", '            printf("FUNCION_DESCONOCIDA %s\\n", funcion);',
                "            return 2;", "        }", "    }", "    return 0;", "}", ""]
     return "\n".join(lineas)
 
 
-def especificacion(ej: Ejercicio, fn: FuncionDriver, cantidad: int = 12, semilla: int = 32) -> Dict[str, object]:
-    reglas = [{"name": p.nombre, **_ESCALARES[p.tipo][2]} for p in fn.parametros]
+def _regla(parametro: Parametro, constantes: Sequence[int]) -> Dict[str, object]:
+    regla: Dict[str, object] = {"name": parametro.nombre, **_ESCALARES[parametro.tipo][2]}
+    if regla["type"] == "integer" and parametro.tipo != "bool" and constantes:
+        minimo = int(regla["min_val"])
+        regla["min_val"] = min(minimo, 0 if minimo == 0 else min(constantes) - 1)  # sin signo no baja de 0
+        regla["max_val"] = max(int(regla["max_val"]), max(constantes) + 1)
+    return regla
+
+
+def especificacion(ej: Ejercicio, fn: FuncionDriver, cantidad: int = 12, semilla: int = 32,
+                   constantes: Sequence[int] = ()) -> Dict[str, object]:
+    reglas = [_regla(p, constantes) for p in fn.parametros]
     plantilla = " ".join([fn.nombre] + [f"{{{p.nombre}}}" for p in fn.parametros]) + "\n"
     if not reglas:
         raise NoAutomatizable(f"{fn.nombre}: sin parámetros, una sola llamada no necesita tyrell")
@@ -155,6 +207,8 @@ class ResultadoCubrir:
     casos: Dict[str, int] = field(default_factory=dict)          # función → casos que quedaron
     descartados: Dict[str, List[str]] = field(default_factory=dict)  # función → casos con UB en la solución
     cobertura: Dict[str, bool] = field(default_factory=dict)        # función → si midió ramas (tyrell cubrir)
+    omitidas: List[str] = field(default_factory=list)               # funciones que el driver no llama
+    ramas: Optional[Dict[str, int]] = None                          # {"tomadas", "totales"} de la solución
     error: Optional[str] = None
 
 
@@ -186,15 +240,21 @@ def generar(dir_ejercicio: Path, ej: Ejercicio, tyrell: Optional[str] = None, co
     solucion = dir_ejercicio / "solucion.c"
     if not solucion.is_file():
         raise NoAutomatizable("falta solucion.c: la referencia de los .out es la solución de la cátedra")
-    fns = funciones_driver(ej)
+    texto_solucion = solucion.read_text(encoding="utf-8")
+    relleno = funciones_de_relleno(texto_solucion)
+    fns = funciones_driver(ej, relleno)
+    res.omitidas = [fn.nombre for fn in ej.funciones if fn.nombre not in {f.nombre for f in fns}]
+    constantes = constantes_comparadas(texto_solucion)
     salida = dir_ejercicio / DIR_CASOS
     (salida / "tyrell").mkdir(parents=True, exist_ok=True)
     driver = salida / "driver.c"
-    driver.write_text(driver_c(ej), encoding="utf-8")
+    driver.write_text(driver_c(ej, relleno), encoding="utf-8")
 
     with tempfile.TemporaryDirectory(prefix="deckard-cubrir-") as tmp:
         tmpd = Path(tmp)
         referencia = tmpd / "referencia"
+        for cabecera in dir_ejercicio.glob("*.h"):  # la copia de la solución los incluye por ruta relativa
+            shutil.copy(cabecera, tmpd)
         fuentes = [solucion_sin_main(solucion, tmpd / "solucion.c"), driver]
         _compilar_referencia(fuentes, referencia)
         for viejo in list(salida.glob("*.in")) + list(salida.glob("*.out")):
@@ -203,7 +263,7 @@ def generar(dir_ejercicio: Path, ej: Ejercicio, tyrell: Optional[str] = None, co
             spec = salida / "tyrell" / f"{fn.nombre}.yaml"
             if regenerar_specs or not spec.is_file():
                 try:
-                    datos = especificacion(ej, fn)
+                    datos = especificacion(ej, fn, constantes=constantes)
                 except NoAutomatizable:
                     continue
                 spec.write_text(
@@ -225,7 +285,43 @@ def generar(dir_ejercicio: Path, ej: Ejercicio, tyrell: Optional[str] = None, co
             res.casos[fn.nombre] = buenos
             if malos:
                 res.descartados[fn.nombre] = malos
+        if cobertura:
+            res.ramas = medir_ramas(fuentes[0], driver, sorted(salida.glob("*.in")))
     return res
+
+
+def _sin_lo_que_el_driver_no_llama(texto: str) -> str:
+    """El fuente con vacíos el `main` renombrado y los `test_*` que traen algunas soluciones: sus
+    ramas (los `assert`) no son la lógica de la consigna y ningún caso las puede ejercitar."""
+    for inicio in reversed(list(_NO_LLAMADAS.finditer(texto))):
+        profundidad, i = 1, inicio.end()
+        while i < len(texto) and profundidad:
+            literal = _LITERAL.match(texto, i)
+            if literal:
+                i = literal.end()
+                continue
+            profundidad += (texto[i] == "{") - (texto[i] == "}")
+            i += 1
+        texto = texto[:inicio.end()] + "}" + texto[i:]
+    return texto
+
+
+def medir_ramas(solucion: Path, driver: Path, entradas: Sequence[Path]) -> Optional[Dict[str, int]]:
+    """Ramas de la solución que ejecutan los casos. None si no se pudo medir (sin dietrich o sin casos)."""
+    dietrich = shutil.which("dietrich")
+    if dietrich is None or not entradas:
+        return None
+    medida = solucion.with_name("solucion_medida.c")
+    medida.write_text(_sin_lo_que_el_driver_no_llama(solucion.read_text(encoding="utf-8")), encoding="utf-8")
+    comando = [dietrich, "lines", str(medida), str(driver), "--only", str(medida), "--json"]
+    for entrada in entradas:
+        comando += ["-i", str(entrada)]
+    try:
+        proc = subprocess.run(comando, capture_output=True, text=True, timeout=120)
+        archivo = json.loads(proc.stdout)["archivos"][0]
+    except (subprocess.TimeoutExpired, ValueError, KeyError, IndexError):
+        return None
+    return {"tomadas": archivo["ramas_tomadas"], "totales": archivo["ramas_totales"]}
 
 
 def _copiar_sin_ub(origen: Path, referencia: Path, destino: Path, prefijo: str) -> Tuple[int, List[str]]:
@@ -238,7 +334,11 @@ def _copiar_sin_ub(origen: Path, referencia: Path, destino: Path, prefijo: str) 
         if texto in vistos:  # tyrell puede repetir bordes cuando el rango es chico
             continue
         vistos.add(texto)
-        proc = subprocess.run([str(referencia)], input=texto, capture_output=True, text=True, timeout=10)
+        try:
+            proc = subprocess.run([str(referencia)], input=texto, capture_output=True, text=True, timeout=10)
+        except subprocess.TimeoutExpired:  # un .out que no termina no es un resultado esperable
+            descartados.append(texto.strip())
+            continue
         if proc.returncode != 0 or "runtime error" in proc.stderr:
             descartados.append(texto.strip())
             continue

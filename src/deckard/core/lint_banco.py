@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from deckard.core.cubrir import funciones_de_relleno
 from deckard.core.bank import ARCHIVO_EJERCICIO, cargar_ejercicio
 from deckard.core.diagramas_sitio import svgs_faltantes
 from deckard.core.models import Ejercicio
@@ -32,6 +33,7 @@ REGLAS: Dict[str, str] = {
     "dep-desconocida": "una etiqueta dep:<tema> no es un tema de temas.yaml",
     "falta-enunciado": "un ejercicio publicable sin enunciado",
     "falta-solucion": "un ejercicio publicable sin solución de la cátedra",
+    "solucion-relleno": "la solución trae una función de relleno, sin relación con la consigna",
     "firmas": "una función declarada falta en la solución o tiene otro tipo de retorno",
     "sin-pruebas": "un ejercicio publicable sin casos de prueba (tests/*.in ni tests_funciones)",
     "solucion": "con --verificar-soluciones, ripley check rechaza la solución de la cátedra",
@@ -107,6 +109,10 @@ def _revisar_ejercicio(ej: Ejercicio, dir_ej: Path, banco: Path, temas: Optional
             h(ERROR, "falta-enunciado", "se publica pero no tiene enunciado")
         if not (ej.solucion_c or "").strip():
             h(AVISO, "falta-solucion", "se publica sin solución de la cátedra")
+        relleno = funciones_de_relleno(ej.solucion_c or "")
+        if relleno:
+            h(AVISO, "solucion-relleno", f"{', '.join(sorted(relleno))} no resuelve la consigna: "
+              "no sirve de referencia para generar casos")
         for d in verificar_firmas_ejercicio(ej):
             h(ERROR, "firmas", d.detalle)
         pruebas = dir_ej / "tests"

@@ -36,7 +36,8 @@ def cubrir_cmd(
             ej = cargar_ejercicio(dir_ej)
             res = generar(dir_ej, ej, cobertura=not sin_cobertura, regenerar_specs=regenerar_specs)
             informes.append({"id": ej.id, "ok": True, "casos": res.casos, "descartados": res.descartados,
-                             "cobertura": res.cobertura, "carpeta": str(dir_ej / "tests" / "funciones")})
+                             "cobertura": res.cobertura, "ramas": res.ramas, "omitidas": res.omitidas,
+                             "carpeta": str(dir_ej / "tests" / "funciones")})
         except (NoAutomatizable, typer.BadParameter) as exc:
             informes.append({"id": eid, "ok": False, "motivo": str(exc)})
     if as_json:
@@ -46,9 +47,12 @@ def cubrir_cmd(
             if inf["ok"]:
                 total = sum(inf["casos"].values())
                 desc = sum(len(v) for v in inf["descartados"].values())
-                medida = "con cobertura" if all(inf["cobertura"].values()) else "sin cobertura de ramas"
+                ramas = inf["ramas"]
+                medida = (f"{ramas['tomadas']}/{ramas['totales']} ramas" if ramas and ramas["totales"]
+                          else "con cobertura" if all(inf["cobertura"].values()) else "sin cobertura de ramas")
                 console.print(f"[green]✓[/green] {inf['id']}: {total} casos ({medida})"
-                              + (f", {desc} descartados por comportamiento indefinido en la solución" if desc else ""))
+                              + (f", {desc} descartados por comportamiento indefinido en la solución" if desc else "")
+                              + (f"; sin casos: {', '.join(inf['omitidas'])}" if inf["omitidas"] else ""))
             else:
                 err_console.print(f"[yellow]⏸[/yellow] {inf['id']}: {inf['motivo']}")
     if not any(i["ok"] for i in informes):
