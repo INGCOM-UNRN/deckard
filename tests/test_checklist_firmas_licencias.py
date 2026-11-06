@@ -133,6 +133,19 @@ def test_llamada_recursiva_no_es_una_firma():
     assert verificar_firmas_ejercicio(ej) == []
 
 
+def test_firma_con_puntero_a_funcion():
+    ej = Ejercicio(
+        id="ej-callback",
+        titulo="Integración numérica",
+        tema="matrices",
+        bloom=NivelBloom.APLICAR,
+        minutos_estimados=20,
+        funciones=[FuncionSpec(nombre="integrar", retorno="double", parametros="double (*f)(double), double x")],
+        solucion_c="double integrar(double (*f)(double), double x) { return f(x); }\n",
+    )
+    assert verificar_firmas_ejercicio(ej) == []
+
+
 @pytest.mark.parametrize("codigo", ["char *crear(void) { return NULL; }", "char* crear(void) { return NULL; }", "char * crear(void) { return NULL; }"])
 def test_firma_con_retorno_puntero(codigo):
     ej = Ejercicio(id="puntero", titulo="Puntero", tema="memoria", bloom=NivelBloom.APLICAR,
