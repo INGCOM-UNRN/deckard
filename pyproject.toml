@@ -37,7 +37,7 @@ dependencies = [
     "markdown>=3.5.0",
     "weasyprint>=60.0",
     # Núcleo común del ecosistema (N-ECO-14): TyperConErrores y textos en español.
-    "yutani @ git+https://github.com/INGCOM-UNRN-P1/yutani@6f95ad93c661adb4493414c6cc57534a18e8f2e0",
+    "yutani @ git+https://github.com/INGCOM-UNRN/yutani@b4bc961f1664dab6edc6556461e9bdc0bace2d46",
 ]
 
 [project.optional-dependencies]
@@ -56,7 +56,7 @@ ai = [
 ]
 
 languagetool = [
-    "myst-tools @ git+https://github.com/martinvilu/mystmd-tools@1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b",
+    "myst-tools @ git+https://github.com/INGCOM-UNRN/mystmd-tools@1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b",
 ]
 
 [project.urls]
@@ -83,3 +83,9 @@ python_version = "3.11"
 files = ["src"]
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
+
+[tool.uv]
+# Override temporal mientras daedalus/nostromo/myst-tools sigan pineados a commits con INGCOM-UNRN-P1/yutani@6f95ad93.
+override-dependencies = [
+    "yutani @ git+https://github.com/INGCOM-UNRN/yutani@b4bc961f1664dab6edc6556461e9bdc0bace2d46",
+]

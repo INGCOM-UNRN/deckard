@@ -8,6 +8,9 @@ resolution-markers = [
     "(python_full_version < '3.13' and sys_platform != 'emscripten') or (python_full_version < '3.12' and sys_platform == 'emscripten')",
 ]
 
+[manifest]
+overrides = [{ name = "yutani", git = "https://github.com/INGCOM-UNRN/yutani?rev=b4bc961f1664dab6edc6556461e9bdc0bace2d46" }]
+
 [[package]]
 name = "annotated-doc"
 version = "0.0.5"
@@ -561,14 +564,14 @@ requires-dist = [
     { name = "google-genai", marker = "extra == 'ai'", specifier = ">=2.4.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "markdown", specifier = ">=3.5.0" },
-    { name = "myst-tools", marker = "extra == 'languagetool'", git = "https://github.com/martinvilu/mystmd-tools?rev=1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b" },
+    { name = "myst-tools", marker = "extra == 'languagetool'", git = "https://github.com/INGCOM-UNRN/mystmd-tools?rev=1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b" },
     { name = "nostromo", marker = "extra == 'ecosistema'", git = "https://github.com/INGCOM-UNRN-P1/nostromo?rev=29589a02489342b616afd1ff27284c3cf55c26f1" },
     { name = "pydantic", specifier = ">=2.0,<3.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.7.0" },
     { name = "typer", specifier = ">=0.12.0" },
     { name = "weasyprint", specifier = ">=60.0" },
-    { name = "yutani", git = "https://github.com/INGCOM-UNRN-P1/yutani?rev=6f95ad93c661adb4493414c6cc57534a18e8f2e0" },
+    { name = "yutani", git = "https://github.com/INGCOM-UNRN/yutani?rev=b4bc961f1664dab6edc6556461e9bdc0bace2d46" },
 ]
 provides-extras = ["ecosistema", "ai", "languagetool"]
 
@@ -1014,7 +1017,7 @@ wheels = [
 [[package]]
 name = "myst-tools"
 version = "0.3.0"
-source = { git = "https://github.com/martinvilu/mystmd-tools?rev=1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b#1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b" }
+source = { git = "https://github.com/INGCOM-UNRN/mystmd-tools?rev=1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b#1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b" }
 dependencies = [
     { name = "rich" },
     { name = "typer" },
@@ -1034,14 +1037,14 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-api"
-version = "1.45.1"
+version = "1.45.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/02/6e0ae9cc61bd3169d401077b507b3ebc344745171e1051ab430be012dcd9/opentelemetry_api-1.45.1.tar.gz", hash = "sha256:aa38ed19bcc084ba42782a73255b3582283eced7ad6dddbd6695189e69adfb75", size = 72804, upload-time = "2026-10-06T17:32:58.133Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/14/cf3a6b6448849656e1e5f4e2101f3988dc6789724050096aba1bc5ccf592/opentelemetry_api-1.45.2.tar.gz", hash = "sha256:d7b0008e21e5fd61cbe7a7f34ca3b6905a78ab677d9bc395e299359c75cda6b4", size = 73277, upload-time = "2026-10-29T17:29:37.888Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/41/f7dcf80b81ee8e71c1a2b59f14208bc723edbd89ed027a73b175abf6348e/opentelemetry_api-1.45.1-py3-none-any.whl", hash = "sha256:b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb", size = 60256, upload-time = "2026-10-06T17:32:33.506Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/2d/610db864d7513158cebb8f36cc88e67e73bd6c7aa1905ef18d89e1281c81/opentelemetry_api-1.45.2-py3-none-any.whl", hash = "sha256:2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34", size = 60335, upload-time = "2026-10-29T17:29:06.955Z" },
 ]
 
 [[package]]
@@ -1660,7 +1663,7 @@ wheels = [
 [[package]]
 name = "yutani"
 version = "0.1.0"
-source = { git = "https://github.com/INGCOM-UNRN-P1/yutani?rev=6f95ad93c661adb4493414c6cc57534a18e8f2e0#6f95ad93c661adb4493414c6cc57534a18e8f2e0" }
+source = { git = "https://github.com/INGCOM-UNRN/yutani?rev=b4bc961f1664dab6edc6556461e9bdc0bace2d46#b4bc961f1664dab6edc6556461e9bdc0bace2d46" }
 dependencies = [
     { name = "rich" },
     { name = "typer" },
