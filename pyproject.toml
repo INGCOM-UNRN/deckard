@@ -44,8 +44,8 @@ dependencies = [
 # Herramientas del ecosistema que se usan como biblioteca (N-ECO-01). Referencias git fijadas
 # a commits publicados; sin el extra se usa el camino propio (gcc, sin sandbox de nostromo…).
 ecosistema = [
-    "daedalus @ git+https://github.com/INGCOM-UNRN-P1/daedalus@3c0f0622e3a4892d0fc479c6854b6a2d943d4b9b",
-    "nostromo @ git+https://github.com/INGCOM-UNRN-P1/nostromo@29589a02489342b616afd1ff27284c3cf55c26f1",
+    "daedalus @ git+https://github.com/INGCOM-UNRN-P1/daedalus@c2c589bce318b0d6d5d6b324fecc20f3b0f2a8ec",
+    "nostromo @ git+https://github.com/INGCOM-UNRN-P1/nostromo@033edd119afde3f0d17357d39fd70d5d163278c8",
 ]
 
 # Revisión ortográfica con LanguageTool (delegada en myst-tools).
@@ -56,7 +56,7 @@ ai = [
 ]
 
 languagetool = [
-    "myst-tools @ git+https://github.com/INGCOM-UNRN/mystmd-tools@1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b",
+    "myst-tools @ git+https://github.com/INGCOM-UNRN/mystmd-tools@88762bba9abe40efec2884939aa81cda19eba90a",
 ]
 
 [project.urls]

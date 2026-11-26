@@ -517,7 +517,7 @@ wheels = [
 [[package]]
 name = "daedalus"
 version = "0.2.0"
-source = { git = "https://github.com/INGCOM-UNRN-P1/daedalus?rev=3c0f0622e3a4892d0fc479c6854b6a2d943d4b9b#3c0f0622e3a4892d0fc479c6854b6a2d943d4b9b" }
+source = { git = "https://github.com/INGCOM-UNRN-P1/daedalus?rev=c2c589bce318b0d6d5d6b324fecc20f3b0f2a8ec#c2c589bce318b0d6d5d6b324fecc20f3b0f2a8ec" }
 dependencies = [
     { name = "rich" },
     { name = "typer" },
@@ -560,12 +560,12 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'ai'", specifier = ">=1.11.0" },
-    { name = "daedalus", marker = "extra == 'ecosistema'", git = "https://github.com/INGCOM-UNRN-P1/daedalus?rev=3c0f0622e3a4892d0fc479c6854b6a2d943d4b9b" },
+    { name = "daedalus", marker = "extra == 'ecosistema'", git = "https://github.com/INGCOM-UNRN-P1/daedalus?rev=c2c589bce318b0d6d5d6b324fecc20f3b0f2a8ec" },
     { name = "google-genai", marker = "extra == 'ai'", specifier = ">=2.4.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "markdown", specifier = ">=3.5.0" },
-    { name = "myst-tools", marker = "extra == 'languagetool'", git = "https://github.com/INGCOM-UNRN/mystmd-tools?rev=1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b" },
-    { name = "nostromo", marker = "extra == 'ecosistema'", git = "https://github.com/INGCOM-UNRN-P1/nostromo?rev=29589a02489342b616afd1ff27284c3cf55c26f1" },
+    { name = "myst-tools", marker = "extra == 'languagetool'", git = "https://github.com/INGCOM-UNRN/mystmd-tools?rev=88762bba9abe40efec2884939aa81cda19eba90a" },
+    { name = "nostromo", marker = "extra == 'ecosistema'", git = "https://github.com/INGCOM-UNRN-P1/nostromo?rev=033edd119afde3f0d17357d39fd70d5d163278c8" },
     { name = "pydantic", specifier = ">=2.0,<3.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.7.0" },
@@ -1017,7 +1017,7 @@ wheels = [
 [[package]]
 name = "myst-tools"
 version = "0.3.0"
-source = { git = "https://github.com/INGCOM-UNRN/mystmd-tools?rev=1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b#1e7c3fdc4436c24ac369ad0d8b90a969a5ea8f5b" }
+source = { git = "https://github.com/INGCOM-UNRN/mystmd-tools?rev=88762bba9abe40efec2884939aa81cda19eba90a#88762bba9abe40efec2884939aa81cda19eba90a" }
 dependencies = [
     { name = "rich" },
     { name = "typer" },
@@ -1027,7 +1027,7 @@ dependencies = [
 [[package]]
 name = "nostromo"
 version = "0.2.0"
-source = { git = "https://github.com/INGCOM-UNRN-P1/nostromo?rev=29589a02489342b616afd1ff27284c3cf55c26f1#29589a02489342b616afd1ff27284c3cf55c26f1" }
+source = { git = "https://github.com/INGCOM-UNRN-P1/nostromo?rev=033edd119afde3f0d17357d39fd70d5d163278c8#033edd119afde3f0d17357d39fd70d5d163278c8" }
 dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
